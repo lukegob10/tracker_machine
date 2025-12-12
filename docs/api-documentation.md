@@ -24,6 +24,7 @@ Content-Type: `application/json`
 - `PATCH /projects/{project_id}` (partial: status, name_abbreviation, project_name, description)
 - `DELETE /projects/{project_id}` (soft delete)
 - Responses include `user_id` set by the server account/env.
+- Bulk CSV: `POST /projects/import` (fields: project_name, name_abbreviation, status, description; strict-first duplicate detection), `GET /projects/export` (CSV download)
 
 ## Solutions (scoped to project)
 - `GET /projects/{project_id}/solutions?status=<not_started|active|on_hold|complete|abandoned>`
@@ -35,6 +36,7 @@ Content-Type: `application/json`
 - `PATCH /solutions/{solution_id}` (partial: solution_name, version, status, description)
 - `DELETE /solutions/{solution_id}` (soft delete)
 - Responses include `user_id` set by the server account/env.
+- Bulk CSV: `POST /solutions/import` (fields: project_name, solution_name, version, status, description; creates missing projects; strict-first duplicates), `GET /solutions/export` (CSV download)
 
 ## Phases (global) and Solution Phases
 - `GET /phases` → ordered list `{ phase_id, phase_group, phase_name, sequence }`
@@ -68,6 +70,7 @@ Content-Type: `application/json`
 - `DELETE /subcomponents/{subcomponent_id}` (soft delete)
 - Rules: `sub_phase` must be among enabled phases for the solution; name unique per solution; `priority` 0–5.
 - Responses include `user_id` set by the server account/env.
+- Bulk CSV: `POST /subcomponents/import` (fields: project_name, solution_name, version (optional, defaults to 0.1.0), subcomponent_name, status, priority, due_date, sub_phase, description, notes, category, dependencies, work_estimate; creates missing projects/solutions; strict-first duplicates), `GET /subcomponents/export` (CSV download)
 
 ## Checklist (subcomponent phase completion)
 - `GET /subcomponents/{subcomponent_id}/phases` → syncs rows to enabled phases, returns `{ solution_phase_id, phase_id, is_complete, completed_at }`

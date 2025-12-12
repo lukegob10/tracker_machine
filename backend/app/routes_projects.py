@@ -1,13 +1,18 @@
 from datetime import datetime, timezone
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, status
+import csv
+from io import StringIO
+
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, status
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
 from .deps import get_db
 from .enums import ProjectStatus
 from .models import Project
 from .schemas import ProjectCreate, ProjectRead, ProjectUpdate
+from .utils import derive_abbreviation, get_default_user_id, normalize_status, normalize_str, read_csv
 from .utils import get_default_user_id
 
 router = APIRouter()
@@ -67,6 +72,89 @@ def create_project(payload: ProjectCreate, session: Session = Depends(get_db)):
     session.commit()
     session.refresh(project)
     return project
+
+
+@router.post("/import")
+def import_projects(file: UploadFile = File(...), session: Session = Depends(get_db)):
+    rows, errors = read_csv(file.file.read())
+    if errors:
+        return {"created": 0, "updated": 0, "errors": errors, "total_rows": 0}
+    created = updated = 0
+    seen = set()
+    existing_abbrevs = {p.name_abbreviation for p in _project_query(session).all()}
+    new_abbrevs = set()
+
+    for idx, row in enumerate(rows, start=2):  # header is row 1
+        name = normalize_str(row.get("project_name"))
+        if not name:
+            errors.append(f"Row {idx}: project_name is required")
+            continue
+        key = name.lower()
+        if key in seen:
+            errors.append(f"Row {idx}: duplicate project_name '{name}' in CSV (strict-first policy)")
+            continue
+        seen.add(key)
+
+        abbr_raw = normalize_str(row.get("name_abbreviation"))
+        try:
+            if len(abbr_raw) == 4:
+                abbr = abbr_raw
+            else:
+                abbr = derive_abbreviation(name, existing_abbrevs | new_abbrevs)
+            status_enum = normalize_status(
+                row.get("status") or ProjectStatus.not_started.value, ProjectStatus
+            )
+        except ValueError as exc:
+            errors.append(f"Row {idx}: {exc}")
+            continue
+
+        description = normalize_str(row.get("description")) or None
+        existing = _project_query(session).filter(Project.project_name == name).first()
+        try:
+            if existing:
+                existing.name_abbreviation = abbr
+                existing.status = status_enum
+                existing.description = description
+                existing.updated_at = datetime.now(timezone.utc)
+                session.add(existing)
+                updated += 1
+            else:
+                project = Project(
+                    project_name=name,
+                    name_abbreviation=abbr,
+                    status=status_enum,
+                    description=description,
+                    user_id=get_default_user_id(),
+                )
+                session.add(project)
+                created += 1
+                new_abbrevs.add(abbr)
+            session.commit()
+        except Exception as exc:
+            session.rollback()
+            errors.append(f"Row {idx}: {exc}")
+    return {"created": created, "updated": updated, "errors": errors, "total_rows": len(rows)}
+
+
+@router.get("/export")
+def export_projects(session: Session = Depends(get_db)):
+    projects = _project_query(session).all()
+    buffer = StringIO()
+    fieldnames = ["project_name", "name_abbreviation", "status", "description"]
+    writer = csv.DictWriter(buffer, fieldnames=fieldnames)
+    writer.writeheader()
+    for p in projects:
+        writer.writerow(
+            {
+                "project_name": p.project_name,
+                "name_abbreviation": p.name_abbreviation,
+                "status": p.status.value if hasattr(p.status, "value") else p.status,
+                "description": p.description or "",
+            }
+        )
+    buffer.seek(0)
+    headers = {"Content-Disposition": 'attachment; filename="projects.csv"'}
+    return StreamingResponse(buffer, media_type="text/csv", headers=headers)
 
 
 @router.get("/{project_id}", response_model=ProjectRead)

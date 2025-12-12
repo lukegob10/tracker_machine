@@ -14,11 +14,23 @@ const els = {
   upcomingPanel: document.getElementById("upcoming-panel"),
   projectForm: document.getElementById("project-form"),
   projectList: document.getElementById("project-list"),
+  projectsDownload: document.getElementById("projects-download"),
+  projectsUpload: document.getElementById("projects-upload"),
+  projectsFile: document.getElementById("projects-file"),
+  projectsImportResult: document.getElementById("projects-import-result"),
   solutionForm: document.getElementById("solution-form"),
   solutionList: document.getElementById("solution-list"),
+  solutionsDownload: document.getElementById("solutions-download"),
+  solutionsUpload: document.getElementById("solutions-upload"),
+  solutionsFile: document.getElementById("solutions-file"),
+  solutionsImportResult: document.getElementById("solutions-import-result"),
   phasesTable: document.getElementById("phases-table"),
   subcomponentForm: document.getElementById("subcomponent-form"),
   subcomponentList: document.getElementById("subcomponent-list"),
+  subcomponentsDownload: document.getElementById("subcomponents-download"),
+  subcomponentsUpload: document.getElementById("subcomponents-upload"),
+  subcomponentsFile: document.getElementById("subcomponents-file"),
+  subcomponentsImportResult: document.getElementById("subcomponents-import-result"),
   kanbanBoard: document.getElementById("kanban-board"),
   calendarGrid: document.getElementById("calendar-grid"),
   newProjectBtn: document.getElementById("new-project"),
@@ -41,6 +53,12 @@ function setStatus(text, type = "") {
   if (!els.status) return;
   els.status.textContent = text;
   els.status.className = `pill ${type}`;
+}
+
+function setImportResult(el, message, isError = false) {
+  if (!el) return;
+  el.textContent = message;
+  el.classList.toggle("error", !!isError);
 }
 
 async function api(path, options = {}) {
@@ -746,6 +764,100 @@ function renderCalendar() {
   els.calendarGrid.innerHTML = html;
 }
 
+async function downloadCsv(kind, filename, resultEl) {
+  try {
+    const res = await fetch(`${API_BASE}/${kind}/export`);
+    if (!res.ok) throw new Error(await res.text());
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+    setImportResult(resultEl, `Downloaded ${filename}`);
+  } catch (err) {
+    setImportResult(resultEl, `Download failed: ${err.message}`, true);
+  }
+}
+
+async function uploadCsv(kind, fileInput, resultEl) {
+  const file = fileInput?.files?.[0];
+  if (!file) {
+    setImportResult(resultEl, "Choose a CSV file first", true);
+    return;
+  }
+  const formData = new FormData();
+  formData.append("file", file);
+  try {
+    const res = await fetch(`${API_BASE}/${kind}/import`, {
+      method: "POST",
+      body: formData,
+    });
+    if (!res.ok) throw new Error(await res.text());
+    const data = await res.json();
+    const errs = data.errors || [];
+    const parts = [
+      `Created ${data.created || 0}`,
+      `Updated ${data.updated || 0}`,
+    ];
+    if (data.projects_created !== undefined) parts.push(`Projects created ${data.projects_created}`);
+    if (data.solutions_created !== undefined) parts.push(`Solutions created ${data.solutions_created}`);
+    const msg = parts.join(", ");
+    setImportResult(
+      resultEl,
+      errs.length ? `${msg}. Errors: ${errs.length} (see console)` : msg,
+      errs.length > 0
+    );
+    if (errs.length) console.warn("Import errors:", errs);
+    await loadData();
+  } catch (err) {
+    setImportResult(resultEl, `Import failed: ${err.message}`, true);
+  } finally {
+    if (fileInput) fileInput.value = "";
+  }
+}
+
+function bindCsvControls() {
+  if (els.projectsDownload) {
+    els.projectsDownload.addEventListener("click", () =>
+      downloadCsv("projects", "projects.csv", els.projectsImportResult)
+    );
+  }
+  if (els.projectsUpload && els.projectsFile) {
+    els.projectsUpload.addEventListener("click", () => els.projectsFile?.click());
+    els.projectsFile.addEventListener("change", () =>
+      uploadCsv("projects", els.projectsFile, els.projectsImportResult)
+    );
+  }
+
+  if (els.solutionsDownload) {
+    els.solutionsDownload.addEventListener("click", () =>
+      downloadCsv("solutions", "solutions.csv", els.solutionsImportResult)
+    );
+  }
+  if (els.solutionsUpload && els.solutionsFile) {
+    els.solutionsUpload.addEventListener("click", () => els.solutionsFile?.click());
+    els.solutionsFile.addEventListener("change", () =>
+      uploadCsv("solutions", els.solutionsFile, els.solutionsImportResult)
+    );
+  }
+
+  if (els.subcomponentsDownload) {
+    els.subcomponentsDownload.addEventListener("click", () =>
+      downloadCsv("subcomponents", "subcomponents.csv", els.subcomponentsImportResult)
+    );
+  }
+  if (els.subcomponentsUpload && els.subcomponentsFile) {
+    els.subcomponentsUpload.addEventListener("click", () => els.subcomponentsFile?.click());
+    els.subcomponentsFile.addEventListener("change", () =>
+      uploadCsv("subcomponents", els.subcomponentsFile, els.subcomponentsImportResult)
+    );
+  }
+}
+
 function bindNav() {
   els.navButtons.forEach((btn) =>
     btn.addEventListener("click", () => {
@@ -756,6 +868,7 @@ function bindNav() {
 
 function init() {
   initTheme();
+  bindCsvControls();
   bindNav();
   bindProjectForm();
   bindSolutionForm();
