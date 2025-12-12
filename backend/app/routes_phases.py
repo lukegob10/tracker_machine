@@ -1,13 +1,14 @@
 from datetime import datetime, timezone
 from typing import List
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from .deps import get_db
 from .models import Phase, Solution, SolutionPhase
 from .schemas import PhaseRead, SolutionPhaseInput, SolutionPhaseRead
+from .realtime import schedule_broadcast
 
 router = APIRouter()
 
@@ -35,6 +36,7 @@ def set_solution_phases(
     solution_id: str,
     payload: dict,
     session: Session = Depends(get_db),
+    tasks: BackgroundTasks = None,
 ):
     """
     Upsert enabled phases for a solution. Payload shape:
@@ -81,8 +83,8 @@ def set_solution_phases(
             )
             session.add(sp)
         updated_items.append(sp)
-
         session.commit()
+    schedule_broadcast("solutions")
     return _ordered_solution_phases(session, solution_id)
 
 

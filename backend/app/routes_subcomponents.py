@@ -3,7 +3,7 @@ from datetime import datetime, timezone, date
 from io import StringIO
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, status
+from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, status, BackgroundTasks
 from fastapi.responses import StreamingResponse
 from sqlalchemy import func
 from sqlalchemy.orm import Session
@@ -26,6 +26,7 @@ from .utils import (
     parse_priority,
     read_csv,
 )
+from .realtime import schedule_broadcast
 from .utils import get_default_user_id
 
 router = APIRouter()
@@ -121,6 +122,7 @@ def create_subcomponent(
     solution_id: str,
     payload: SubcomponentCreate,
     session: Session = Depends(get_db),
+    tasks: BackgroundTasks = None,
 ):
     solution = _ensure_solution(session, solution_id)
     _validate_sub_phase(session, solution_id, payload.sub_phase)
@@ -162,11 +164,12 @@ def create_subcomponent(
     session.add(subcomponent)
     session.commit()
     session.refresh(subcomponent)
+    schedule_broadcast("subcomponents")
     return subcomponent
 
 
 @router.post("/subcomponents/import")
-def import_subcomponents(file: UploadFile = File(...), session: Session = Depends(get_db)):
+def import_subcomponents(file: UploadFile = File(...), session: Session = Depends(get_db), tasks: BackgroundTasks = None):
     rows, errors = read_csv(file.file.read())
     if errors:
         return {
@@ -332,6 +335,7 @@ def import_subcomponents(file: UploadFile = File(...), session: Session = Depend
             session.rollback()
             errors.append(f"Row {idx}: {exc}")
 
+    schedule_broadcast("subcomponents")
     return {
         "created": created,
         "updated": updated,
@@ -407,6 +411,7 @@ def update_subcomponent(
     subcomponent_id: str,
     payload: SubcomponentUpdate,
     session: Session = Depends(get_db),
+    tasks: BackgroundTasks = None,
 ):
     subcomponent = _get_subcomponent(session, subcomponent_id)
     if "sub_phase" in payload.model_fields_set:
@@ -439,6 +444,7 @@ def update_subcomponent(
     session.add(subcomponent)
     session.commit()
     session.refresh(subcomponent)
+    schedule_broadcast("subcomponents")
     return subcomponent
 
 
@@ -450,4 +456,5 @@ def delete_subcomponent(subcomponent_id: str, session: Session = Depends(get_db)
     subcomponent.updated_at = now
     session.add(subcomponent)
     session.commit()
+    schedule_broadcast("subcomponents")
     return None

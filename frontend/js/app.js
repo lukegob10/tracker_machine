@@ -47,6 +47,8 @@ const state = {
   filters: {},
   currentView: "master",
   theme: "dark",
+  loading: false,
+  pendingRefresh: false,
 };
 
 function setStatus(text, type = "") {
@@ -75,6 +77,11 @@ async function api(path, options = {}) {
 }
 
 async function loadData() {
+  if (state.loading) {
+    state.pendingRefresh = true;
+    return;
+  }
+  state.loading = true;
   try {
     setStatus("Loading...", "warn");
     state.phases = await api("/phases");
@@ -110,6 +117,12 @@ async function loadData() {
   } catch (err) {
     console.error(err);
     setStatus("Error", "danger");
+  } finally {
+    state.loading = false;
+    if (state.pendingRefresh) {
+      state.pendingRefresh = false;
+      loadData();
+    }
   }
 }
 
@@ -155,6 +168,47 @@ function render() {
   renderSubcomponents();
   renderKanban();
   renderCalendar();
+}
+
+function liveUrl() {
+  const protocol = location.protocol === "https:" ? "wss" : "ws";
+  return `${protocol}://${location.host}/api/ws`;
+}
+
+function initLiveSync() {
+  let socket;
+  let backoff = 1000;
+
+  const connect = () => {
+    socket = new WebSocket(liveUrl());
+
+    socket.addEventListener("open", () => {
+      backoff = 1000;
+      setStatus("Online", "positive");
+    });
+
+    socket.addEventListener("message", (event) => {
+      try {
+        const msg = JSON.parse(event.data);
+        if (msg.type === "refresh") {
+          loadData();
+        }
+      } catch (err) {
+        console.warn("Live message parse failed", err);
+      }
+    });
+
+    const retry = () => {
+      socket = null;
+      backoff = Math.min(backoff * 1.5, 5000);
+      setTimeout(connect, backoff);
+    };
+
+    socket.addEventListener("close", retry);
+    socket.addEventListener("error", retry);
+  };
+
+  connect();
 }
 
 function renderMasterFilters() {
@@ -869,6 +923,7 @@ function bindNav() {
 
 function init() {
   initTheme();
+  initLiveSync();
   bindCsvControls();
   bindNav();
   bindProjectForm();
