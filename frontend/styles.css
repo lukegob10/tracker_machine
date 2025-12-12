@@ -1,0 +1,406 @@
+:root {
+  --base: #003a72;
+  --base-strong: #002a57;
+  --base-soft: #0a4f9c;
+  --bg: #0a1727;
+  --panel: #0f2036;
+  --panel-soft: #12304d;
+  --text: #e6eef7;
+  --muted: #9eb5ce;
+  --accent: #4db1ff;
+  --accent-2: #52d3c7;
+  --border: rgba(255, 255, 255, 0.08);
+  --danger: #ff5f6d;
+  --shadow: 0 12px 32px rgba(0, 58, 114, 0.35);
+}
+
+.theme-light {
+  --base: #2c5ecf;
+  --base-strong: #1e45a8;
+  --base-soft: #3c73e6;
+  --bg: #f4f7fc;
+  --panel: #ffffff;
+  --panel-soft: #edf2fb;
+  --text: #0f1c2e;
+  --muted: #5c6b80;
+  --accent: #3b7cff;
+  --accent-2: #2ac3a2;
+  --border: rgba(15, 28, 46, 0.12);
+  --danger: #d64545;
+  --shadow: 0 12px 32px rgba(17, 38, 74, 0.12);
+}
+
+body {
+  margin: 0;
+  font-family: "Inter", "Segoe UI", sans-serif;
+  background: var(--bg);
+  color: var(--text);
+}
+
+#app-shell {
+  display: grid;
+  grid-template-columns: 240px 1fr;
+  min-height: 100vh;
+}
+
+.sidebar {
+  background: var(--panel);
+  border-right: 1px solid var(--border);
+  padding: 18px;
+}
+
+.brand {
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  font-size: 20px;
+  margin-bottom: 14px;
+}
+
+.nav-group {
+  margin-bottom: 16px;
+}
+.nav-label {
+  text-transform: uppercase;
+  font-size: 11px;
+  color: var(--muted);
+  margin: 10px 0 6px;
+  letter-spacing: 0.08em;
+}
+.nav-btn {
+  width: 100%;
+  text-align: left;
+  padding: 10px 12px;
+  margin-bottom: 6px;
+  border: 1px solid var(--border);
+  background: var(--panel-soft);
+  color: var(--text);
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.nav-btn.active {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: rgba(77, 177, 255, 0.12);
+}
+
+main {
+  padding: 20px;
+}
+
+.topbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 10px 14px;
+  box-shadow: var(--shadow);
+  position: sticky;
+  top: 12px;
+  z-index: 2;
+}
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.status .pill {
+  margin-right: 6px;
+}
+
+.view {
+  display: none;
+  margin-top: 16px;
+}
+.view.active {
+  display: block;
+}
+
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 14px;
+  box-shadow: var(--shadow);
+}
+.panel.soft {
+  background: var(--panel-soft);
+}
+.panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+.panel-header h2,
+.panel h3,
+.panel h4 {
+  margin: 0;
+}
+
+.table {
+  margin-top: 12px;
+}
+.table table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+.table th,
+.table td {
+  padding: 9px;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+}
+.table th {
+  color: var(--muted);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.table tr:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.pill {
+  display: inline-block;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: var(--panel-soft);
+  border: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 12px;
+}
+.pill.positive {
+  color: var(--accent-2);
+  border-color: var(--accent-2);
+}
+.pill.warn {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+.pill.danger {
+  color: var(--danger);
+  border-color: var(--danger);
+}
+
+.form {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+  background: var(--panel-soft);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px;
+}
+.form label {
+  display: grid;
+  gap: 4px;
+  color: var(--muted);
+  font-size: 14px;
+}
+.form input,
+.form select,
+.form textarea {
+  width: 100%;
+  padding: 9px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--panel);
+  color: var(--text);
+}
+.form textarea {
+  min-height: 64px;
+}
+.form .full-span {
+  grid-column: 1 / -1;
+}
+.form.compact {
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  column-gap: 12px;
+  row-gap: 10px;
+}
+#project-form.form.compact {
+  column-gap: 24px;
+  row-gap: 20px;
+}
+#solution-form.form.compact {
+  column-gap: 24px;
+}
+#subcomponent-form.form.compact {
+  column-gap: 24px;
+}
+.form.compact label {
+  font-size: 12px;
+}
+.form.compact input,
+.form.compact select,
+.form.compact textarea {
+  padding: 6px;
+  font-size: 12px;
+}
+.form-actions {
+  display: flex;
+  gap: 8px;
+}
+.form-actions button {
+  flex: 1;
+}
+
+button {
+  background: linear-gradient(120deg, var(--accent), var(--accent-2));
+  color: #001226;
+  border: none;
+  padding: 10px 12px;
+  border-radius: 10px;
+  cursor: pointer;
+  font-weight: 700;
+}
+button.secondary {
+  background: var(--panel);
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+button:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.filters input,
+.filters select {
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--panel-soft);
+  color: var(--text);
+}
+
+.cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 8px;
+  margin-top: 8px;
+}
+.card {
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--panel-soft);
+  box-shadow: var(--shadow);
+}
+.card h3 {
+  margin: 0 0 6px;
+  letter-spacing: 0.01em;
+}
+.card .value {
+  font-size: 24px;
+  font-weight: 800;
+}
+.card .meta {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.dashboard-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.kanban {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.kanban-column {
+  background: var(--panel-soft);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 10px;
+}
+.kanban-card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px;
+  margin-bottom: 8px;
+  box-shadow: var(--shadow);
+}
+.kanban-card .meta {
+  color: var(--muted);
+  font-size: 12px;
+}
+.kanban-project {
+  margin-bottom: 10px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 8px;
+  background: rgba(255,255,255,0.02);
+}
+.kanban-project-title {
+  font-weight: 700;
+  margin-bottom: 6px;
+}
+.kanban-solution {
+  margin-bottom: 10px;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: rgba(255,255,255,0.02);
+}
+.kanban-solution-title {
+  font-size: 13px;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+.kanban-swimlane {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 8px;
+}
+
+.calendar {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 10px;
+}
+.calendar-day {
+  background: var(--panel-soft);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 10px;
+}
+
+.stacked {
+  display: grid;
+  gap: 16px;
+}
+.stack-block h3 {
+  margin: 0 0 8px;
+}
+
+@media (max-width: 900px) {
+  #app-shell {
+    grid-template-columns: 1fr;
+  }
+  .sidebar {
+    position: relative;
+  }
+  .topbar {
+    position: static;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+}

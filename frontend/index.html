@@ -1,0 +1,200 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Inventory Tool</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div id="app-shell">
+    <aside class="sidebar">
+      <div class="brand">Inventory Tool</div>
+      <div class="nav-group">
+        <p class="nav-label">Views</p>
+        <button data-view="master" class="nav-btn active">Master List</button>
+        <button data-view="dashboard" class="nav-btn">Dashboard</button>
+        <button data-view="projects" class="nav-btn">Projects</button>
+        <button data-view="solutions" class="nav-btn">Solutions</button>
+        <button data-view="subcomponents" class="nav-btn">Subcomponents</button>
+        <button data-view="kanban" class="nav-btn">Swimlanes</button>
+        <button data-view="calendar" class="nav-btn">Calendar</button>
+      </div>
+    </aside>
+
+    <main>
+      <header class="topbar">
+        <div class="status">
+          <span id="connection-status" class="pill">Loading…</span>
+        </div>
+        <div class="topbar-actions">
+          <button id="theme-toggle" class="secondary">Light Mode</button>
+        </div>
+      </header>
+
+      <section id="view-master" class="view active">
+        <div class="panel">
+          <div class="panel-header">
+            <h2>Master List</h2>
+            <div class="filters" id="master-filters"></div>
+          </div>
+          <div id="master-table" class="table"></div>
+        </div>
+      </section>
+
+      <section id="view-dashboard" class="view">
+        <div class="panel">
+          <div class="panel-header">
+            <h2>Dashboard</h2>
+          </div>
+          <div id="dashboard-cards" class="cards"></div>
+          <div class="dashboard-row">
+            <div class="panel" id="projects-summary"></div>
+            <div class="panel" id="solutions-summary"></div>
+          </div>
+          <div class="dashboard-row">
+            <div class="panel" id="attention-panel"></div>
+            <div class="panel" id="upcoming-panel"></div>
+          </div>
+        </div>
+      </section>
+
+      <section id="view-projects" class="view">
+        <div class="panel">
+          <div class="panel-header">
+            <h2>Projects</h2>
+          </div>
+          <div class="stacked">
+            <div class="stack-block">
+              <h3>Projects</h3>
+              <form id="project-form" class="form compact">
+                <input type="hidden" name="project_id" />
+                <label>Project <input name="project_name" required /></label>
+                <label>Abbreviation (4) <input name="name_abbreviation" maxlength="4" required /></label>
+                <label>Status
+                  <select name="status">
+                    <option value="not_started">Not started</option>
+                    <option value="active">Active</option>
+                    <option value="on_hold">On hold</option>
+                    <option value="complete">Complete</option>
+                    <option value="abandoned">Abandoned</option>
+                  </select>
+                </label>
+                <label class="full-span">Description <textarea name="description"></textarea></label>
+                <div class="form-actions full-span">
+                  <button type="submit">Save Edit</button>
+                  <button type="button" id="new-project" class="secondary">New</button>
+                  <button type="reset" class="secondary">Reset</button>
+                </div>
+              </form>
+              <div id="project-list" class="table"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="view-solutions" class="view">
+        <div class="panel">
+          <div class="panel-header">
+            <h2>Solutions</h2>
+          </div>
+          <div class="stacked">
+            <div class="stack-block">
+              <form id="solution-form" class="form compact">
+                <input type="hidden" name="solution_id" />
+                <label class="wide">Project
+                  <select name="project_id" required></select>
+                </label>
+                <label class="wide">Solution <input name="solution_name" required /></label>
+                <label>Version <input name="version" value="0.1.0" /></label>
+                <label>Status
+                  <select name="status">
+                    <option value="not_started">Not started</option>
+                    <option value="active">Active</option>
+                    <option value="on_hold">On hold</option>
+                    <option value="complete">Complete</option>
+                    <option value="abandoned">Abandoned</option>
+                  </select>
+                </label>
+                <label class="full-span">Description <textarea name="description"></textarea></label>
+                <div class="form-actions full-span">
+                  <button type="submit">Save Edit</button>
+                  <button type="button" id="new-solution" class="secondary">New</button>
+                  <button type="reset" class="secondary">Reset</button>
+                </div>
+              </form>
+              <div id="solution-list" class="table"></div>
+              <details id="solution-phases" class="panel soft">
+                <summary>Phases for Selected Solution</summary>
+                <div id="phases-table" class="table"></div>
+              </details>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="view-subcomponents" class="view">
+        <div class="panel">
+            <div class="panel-header">
+              <h2>Subcomponents</h2>
+          </div>
+          <form id="subcomponent-form" class="form compact">
+            <input type="hidden" name="subcomponent_id" />
+            <label class="wide">Project
+              <select name="project_id" required></select>
+            </label>
+            <label class="wide">Solution
+              <select name="solution_id" required></select>
+            </label>
+            <label>Subphase
+              <select name="sub_phase"></select>
+            </label>
+            <label>Priority
+              <input type="number" name="priority" min="0" max="5" value="3" />
+            </label>
+            <label>Due Date <input type="date" name="due_date" /></label>
+            <label>Status
+              <select name="status">
+                <option value="to_do">To do</option>
+                <option value="in_progress">In progress</option>
+                <option value="on_hold">On hold</option>
+                <option value="complete">Complete</option>
+                <option value="abandoned">Abandoned</option>
+              </select>
+            </label>
+            <label class="full-span">Name <input name="subcomponent_name" required /></label>
+            <label class="full-span">Description <textarea name="description"></textarea></label>
+            <label class="full-span">Notes <textarea name="notes"></textarea></label>
+            <div class="form-actions full-span">
+              <button type="submit">Save Edit</button>
+              <button type="button" id="new-subcomponent" class="secondary">New</button>
+              <button type="reset" class="secondary">Reset</button>
+            </div>
+          </form>
+          <div id="subcomponent-list" class="table"></div>
+        </div>
+      </section>
+
+      <section id="view-kanban" class="view">
+        <div class="panel">
+          <div class="panel-header">
+            <h2>Swimlanes</h2>
+          </div>
+          <div id="kanban-board" class="kanban"></div>
+        </div>
+      </section>
+
+      <section id="view-calendar" class="view">
+        <div class="panel">
+          <div class="panel-header">
+            <h2>Calendar</h2>
+          </div>
+          <div id="calendar-grid" class="calendar"></div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script type="module" src="js/app.js?v=2"></script>
+</body>
+</html>
