@@ -67,6 +67,12 @@
           <div class="stacked">
             <div class="stack-block">
               <h3>Projects</h3>
+              <div class="import-export">
+                <button type="button" id="projects-download" class="secondary">Download CSV</button>
+                <button type="button" id="projects-upload" class="secondary">Upload CSV</button>
+                <input type="file" id="projects-file" accept=".csv" hidden />
+                <span id="projects-import-result" class="import-result"></span>
+              </div>
               <form id="project-form" class="form compact">
                 <input type="hidden" name="project_id" />
                 <label>Project <input name="project_name" required /></label>
@@ -100,6 +106,12 @@
           </div>
           <div class="stacked">
             <div class="stack-block">
+              <div class="import-export">
+                <button type="button" id="solutions-download" class="secondary">Download CSV</button>
+                <button type="button" id="solutions-upload" class="secondary">Upload CSV</button>
+                <input type="file" id="solutions-file" accept=".csv" hidden />
+                <span id="solutions-import-result" class="import-result"></span>
+              </div>
               <form id="solution-form" class="form compact">
                 <input type="hidden" name="solution_id" />
                 <label class="wide">Project
@@ -137,6 +149,12 @@
         <div class="panel">
             <div class="panel-header">
               <h2>Subcomponents</h2>
+          </div>
+          <div class="import-export">
+            <button type="button" id="subcomponents-download" class="secondary">Download CSV</button>
+            <button type="button" id="subcomponents-upload" class="secondary">Upload CSV</button>
+            <input type="file" id="subcomponents-file" accept=".csv" hidden />
+            <span id="subcomponents-import-result" class="import-result"></span>
           </div>
           <form id="subcomponent-form" class="form compact">
             <input type="hidden" name="subcomponent_id" />

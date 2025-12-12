@@ -316,6 +316,21 @@ button:disabled {
   margin-top: 8px;
 }
 
+.import-export {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.import-result {
+  font-size: 12px;
+  color: var(--muted);
+}
+.import-result.error {
+  color: var(--danger);
+}
+
 .kanban {
   display: flex;
   flex-direction: column;

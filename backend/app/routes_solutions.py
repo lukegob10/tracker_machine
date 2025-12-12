@@ -1,13 +1,24 @@
+import csv
 from datetime import datetime, timezone
+from io import StringIO
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, status
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
 from .deps import get_db
-from .enums import SolutionStatus
-from .models import Project, Solution, Phase, SolutionPhase
+from .enums import ProjectStatus, SolutionStatus
+from .models import Project, Solution
 from .schemas import SolutionCreate, SolutionRead, SolutionUpdate
+from .utils import (
+    derive_abbreviation,
+    enable_all_phases,
+    get_default_user_id,
+    normalize_status,
+    normalize_str,
+    read_csv,
+)
 from .utils import get_default_user_id
 
 router = APIRouter()
@@ -93,9 +104,130 @@ def create_solution(
     session.add(solution)
     session.commit()
     session.refresh(solution)
-    _enable_all_phases(session, solution.solution_id)
+    enable_all_phases(session, solution.solution_id)
     session.refresh(solution)
     return solution
+
+
+@router.post("/solutions/import")
+def import_solutions(file: UploadFile = File(...), session: Session = Depends(get_db)):
+    rows, errors = read_csv(file.file.read())
+    if errors:
+        return {"created": 0, "updated": 0, "projects_created": 0, "errors": errors, "total_rows": 0}
+    created = updated = projects_created = 0
+    seen = set()
+
+    projects_by_name = {
+        p.project_name.lower(): p for p in session.query(Project).filter(Project.deleted_at.is_(None)).all()
+    }
+    abbrevs = {p.name_abbreviation for p in projects_by_name.values()}
+    new_abbrevs = set()
+
+    for idx, row in enumerate(rows, start=2):
+        project_name = normalize_str(row.get("project_name"))
+        solution_name = normalize_str(row.get("solution_name"))
+        version_raw = normalize_str(row.get("version")) or "0.1.0"
+        if not project_name or not solution_name:
+            errors.append(f"Row {idx}: project_name and solution_name are required")
+            continue
+        key = (project_name.lower(), solution_name.lower(), version_raw.lower())
+        if key in seen:
+            errors.append(
+                f"Row {idx}: duplicate solution '{solution_name}' version '{version_raw}' for project '{project_name}' in CSV (strict-first policy)"
+            )
+            continue
+        seen.add(key)
+        try:
+            status_enum = normalize_status(
+                row.get("status") or SolutionStatus.not_started.value, SolutionStatus
+            )
+        except ValueError as exc:
+            errors.append(f"Row {idx}: {exc}")
+            continue
+        description = normalize_str(row.get("description")) or None
+
+        project = projects_by_name.get(project_name.lower())
+        if not project:
+            try:
+                abbr = derive_abbreviation(project_name, abbrevs | new_abbrevs)
+            except ValueError as exc:
+                errors.append(f"Row {idx}: {exc}")
+                continue
+            project = Project(
+                project_name=project_name,
+                name_abbreviation=abbr,
+                status=ProjectStatus.not_started,
+                description=None,
+                user_id=get_default_user_id(),
+            )
+            session.add(project)
+            projects_by_name[project_name.lower()] = project
+            new_abbrevs.add(abbr)
+            projects_created += 1
+
+        existing = (
+            _solution_query(session)
+            .filter(Solution.project_id == project.project_id)
+            .filter(Solution.solution_name == solution_name)
+            .filter(Solution.version == version_raw)
+            .first()
+        )
+        try:
+            if existing:
+                existing.status = status_enum
+                existing.description = description
+                existing.updated_at = datetime.now(timezone.utc)
+                session.add(existing)
+                updated += 1
+                session.commit()
+            else:
+                solution = Solution(
+                    project_id=project.project_id,
+                    solution_name=solution_name,
+                    version=version_raw,
+                    status=status_enum,
+                    description=description,
+                    user_id=get_default_user_id(),
+                )
+                session.add(solution)
+                session.commit()
+                enable_all_phases(session, solution.solution_id)
+                created += 1
+        except Exception as exc:
+            session.rollback()
+            errors.append(f"Row {idx}: {exc}")
+    return {
+        "created": created,
+        "updated": updated,
+        "projects_created": projects_created,
+        "errors": errors,
+        "total_rows": len(rows),
+    }
+
+
+@router.get("/solutions/export")
+def export_solutions(session: Session = Depends(get_db)):
+    solutions = _solution_query(session).all()
+    project_map = {
+        p.project_id: p.project_name for p in session.query(Project).filter(Project.deleted_at.is_(None))
+    }
+    buffer = StringIO()
+    fieldnames = ["project_name", "solution_name", "version", "status", "description"]
+    writer = csv.DictWriter(buffer, fieldnames=fieldnames)
+    writer.writeheader()
+    for s in solutions:
+        writer.writerow(
+            {
+                "project_name": project_map.get(s.project_id, ""),
+                "solution_name": s.solution_name,
+                "version": s.version,
+                "status": s.status.value if hasattr(s.status, "value") else s.status,
+                "description": s.description or "",
+            }
+        )
+    buffer.seek(0)
+    headers = {"Content-Disposition": 'attachment; filename=\"solutions.csv\"'}
+    return StreamingResponse(buffer, media_type="text/csv", headers=headers)
 
 
 @router.get("/solutions/{solution_id}", response_model=SolutionRead)
@@ -147,32 +279,3 @@ def delete_solution(solution_id: str, session: Session = Depends(get_db)):
     session.add(solution)
     session.commit()
     return None
-
-
-def _enable_all_phases(session: Session, solution_id: str) -> None:
-    phases = session.query(Phase).order_by(Phase.sequence.asc()).all()
-    now = datetime.now(timezone.utc)
-    for ph in phases:
-        exists = (
-            session.query(SolutionPhase)
-            .filter(SolutionPhase.solution_id == solution_id)
-            .filter(SolutionPhase.phase_id == ph.phase_id)
-            .first()
-        )
-        if exists:
-            exists.is_enabled = True
-            exists.sequence_override = None
-            exists.updated_at = now
-            session.add(exists)
-        else:
-            session.add(
-                SolutionPhase(
-                    solution_id=solution_id,
-                    phase_id=ph.phase_id,
-                    is_enabled=True,
-                    sequence_override=None,
-                    created_at=now,
-                    updated_at=now,
-                )
-            )
-    session.commit()
