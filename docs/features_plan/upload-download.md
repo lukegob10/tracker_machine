@@ -7,7 +7,7 @@ Goal: round-trip CSV import/export for the three core entities to bulk load and 
 - Import: CSV ingest for each entity; uses names to find/create parents. Supports upsert-like behavior without IDs.
 - Relationships: importing a child can create its missing parent(s) by name.
 
-## File Shapes (draft)
+## File Shapes
 - Projects CSV
   - Columns: project_name (req), name_abbreviation (req, 4 chars), status, description
 - Solutions CSV
@@ -16,7 +16,7 @@ Goal: round-trip CSV import/export for the three core entities to bulk load and 
   - Columns: project_name (req), solution_name (req), version (optional, defaults to 0.1.0), subcomponent_name (req), status, priority, due_date (YYYY-MM-DD), sub_phase, description, notes
   - Optional: category, dependencies, work_estimate
 
-## Import Behavior
+## Import Behavior (implemented)
 - Matching
   - Projects: match by project_name; if not found, create.
   - Solutions: match within project by (solution_name, version); if project_name missing in DB, create project first (needs a rule for name_abbreviation fallback, e.g., slug/first 4 chars).
@@ -40,13 +40,13 @@ Goal: round-trip CSV import/export for the three core entities to bulk load and 
 - Status values exported as enum slugs (e.g., `in_progress`); dates ISO (YYYY-MM-DD).
 - Include project_name on Solutions/Subcomponents and solution_name on Subcomponents for context.
 
-## API Surface (proposed)
+## API Surface (live)
 - Projects: `POST /projects/import` (CSV upload), `GET /projects/export` (CSV download)
 - Solutions: `POST /solutions/import`, `GET /solutions/export`
 - Subcomponents: `POST /subcomponents/import`, `GET /subcomponents/export`
 - Consider a combined import that accepts a zip with three CSVs, processed in order (projects → solutions → subcomponents).
 
-## UI Hooks (proposed)
+## UI Hooks (live)
 - Upload buttons on each view (Projects, Solutions, Subcomponents) to select CSV and show a result summary.
 - Download buttons to fetch current data CSV.
 - Display import report: counts (created/updated/skipped/errors) and per-row issues.

@@ -161,6 +161,7 @@ def import_solutions(file: UploadFile = File(...), session: Session = Depends(ge
                 user_id=get_default_user_id(),
             )
             session.add(project)
+            session.flush()  # ensure project_id is available
             projects_by_name[project_name.lower()] = project
             new_abbrevs.add(abbr)
             projects_created += 1

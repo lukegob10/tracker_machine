@@ -246,6 +246,7 @@ def import_subcomponents(file: UploadFile = File(...), session: Session = Depend
                 user_id=get_default_user_id(),
             )
             session.add(project)
+            session.flush()  # ensure project_id available
             projects_by_name[project_name.lower()] = project
             new_abbrevs.add(abbr)
             projects_created += 1
@@ -253,19 +254,24 @@ def import_subcomponents(file: UploadFile = File(...), session: Session = Depend
         solution_key = (project.project_id, solution_name.lower(), version_raw.lower())
         solution = solutions_by_key.get(solution_key)
         if not solution:
-            solution = Solution(
-                project_id=project.project_id,
-                solution_name=solution_name,
-                version=version_raw,
-                status=SolutionStatus.not_started,
-                description=None,
-                user_id=get_default_user_id(),
-            )
-            session.add(solution)
-            session.commit()
-            enable_all_phases(session, solution.solution_id)
-            solutions_by_key[solution_key] = solution
-            solutions_created += 1
+            try:
+                solution = Solution(
+                    project_id=project.project_id,
+                    solution_name=solution_name,
+                    version=version_raw,
+                    status=SolutionStatus.not_started,
+                    description=None,
+                    user_id=get_default_user_id(),
+                )
+                session.add(solution)
+                session.commit()
+                enable_all_phases(session, solution.solution_id)
+                solutions_by_key[solution_key] = solution
+                solutions_created += 1
+            except Exception as exc:
+                session.rollback()
+                errors.append(f"Row {idx}: {exc}")
+                continue
 
         try:
             enabled_phase_ids = _enabled_phase_ids(session, solution.solution_id)

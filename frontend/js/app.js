@@ -244,7 +244,7 @@ function formatStatus(status) {
 function renderMasterTable() {
   if (!els.masterTable) return;
   const rows = filteredSubcomponents();
-  const header = ["Project", "Solution", "Name", "Subphase", "Priority", "Due", "Status", "Progress"];
+  const header = ["Project", "Solution", "Subcomponent", "Subphase", "Priority", "Due", "Status", "Progress"];
   let html = "<table><thead><tr>" + header.map((h) => `<th>${h}</th>`).join("") + "</tr></thead><tbody>";
   rows.forEach((r) => {
     const project = state.projects.find((p) => p.project_id === r.project_id);
@@ -806,9 +806,10 @@ async function uploadCsv(kind, fileInput, resultEl) {
     if (data.projects_created !== undefined) parts.push(`Projects created ${data.projects_created}`);
     if (data.solutions_created !== undefined) parts.push(`Solutions created ${data.solutions_created}`);
     const msg = parts.join(", ");
+    const errorSnippet = errs.length ? ` Errors (${errs.length}): ${errs.slice(0, 3).join(" | ")}` : "";
     setImportResult(
       resultEl,
-      errs.length ? `${msg}. Errors: ${errs.length} (see console)` : msg,
+      errs.length ? `${msg}.${errorSnippet}` : msg,
       errs.length > 0
     );
     if (errs.length) console.warn("Import errors:", errs);

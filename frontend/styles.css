@@ -356,14 +356,16 @@ button:disabled {
 }
 .kanban-project {
   margin-bottom: 10px;
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 8px;
-  background: rgba(255,255,255,0.02);
+  border: 1px solid var(--accent);
+  border-radius: 12px;
+  padding: 12px;
+  background: linear-gradient(145deg, rgba(77,177,255,0.12), rgba(82,211,199,0.08));
+  box-shadow: 0 10px 30px rgba(77, 177, 255, 0.12);
 }
 .kanban-project-title {
   font-weight: 700;
-  margin-bottom: 6px;
+  margin-bottom: 8px;
+  color: var(--text);
 }
 .kanban-solution {
   margin-bottom: 10px;
