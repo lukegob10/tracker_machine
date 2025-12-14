@@ -66,6 +66,7 @@ def create_project(payload: ProjectCreate, session: Session = Depends(get_db), t
         name_abbreviation=payload.name_abbreviation,
         status=payload.status,
         description=payload.description,
+        sponsor=payload.sponsor,
         user_id=get_default_user_id(),
     )
     session.add(project)
@@ -87,8 +88,12 @@ def import_projects(file: UploadFile = File(...), session: Session = Depends(get
 
     for idx, row in enumerate(rows, start=2):  # header is row 1
         name = normalize_str(row.get("project_name"))
+        sponsor = normalize_str(row.get("sponsor"))
         if not name:
             errors.append(f"Row {idx}: project_name is required")
+            continue
+        if not sponsor:
+            errors.append(f"Row {idx}: sponsor is required")
             continue
         key = name.lower()
         if key in seen:
@@ -116,6 +121,7 @@ def import_projects(file: UploadFile = File(...), session: Session = Depends(get
                 existing.name_abbreviation = abbr
                 existing.status = status_enum
                 existing.description = description
+                existing.sponsor = sponsor
                 existing.updated_at = datetime.now(timezone.utc)
                 session.add(existing)
                 updated += 1
@@ -125,6 +131,7 @@ def import_projects(file: UploadFile = File(...), session: Session = Depends(get
                     name_abbreviation=abbr,
                     status=status_enum,
                     description=description,
+                    sponsor=sponsor,
                     user_id=get_default_user_id(),
                 )
                 session.add(project)
@@ -142,7 +149,7 @@ def import_projects(file: UploadFile = File(...), session: Session = Depends(get
 def export_projects(session: Session = Depends(get_db)):
     projects = _project_query(session).all()
     buffer = StringIO()
-    fieldnames = ["project_name", "name_abbreviation", "status", "description"]
+    fieldnames = ["project_name", "name_abbreviation", "status", "description", "sponsor"]
     writer = csv.DictWriter(buffer, fieldnames=fieldnames)
     writer.writeheader()
     for p in projects:
@@ -152,6 +159,7 @@ def export_projects(session: Session = Depends(get_db)):
                 "name_abbreviation": p.name_abbreviation,
                 "status": p.status.value if hasattr(p.status, "value") else p.status,
                 "description": p.description or "",
+                "sponsor": p.sponsor or "",
             }
         )
     buffer.seek(0)

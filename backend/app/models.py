@@ -48,6 +48,7 @@ class Project(TimestampMixin, SoftDeleteMixin, Base):
         Enum(ProjectStatus), index=True, nullable=False
     )
     description: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    sponsor: Mapped[str] = mapped_column(String, nullable=False, default="")
     user_id: Mapped[Optional[str]] = mapped_column(String, nullable=True, index=True)
 
 
@@ -74,6 +75,8 @@ class Solution(TimestampMixin, SoftDeleteMixin, Base):
         Enum(SolutionStatus), index=True, nullable=False
     )
     description: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    owner: Mapped[str] = mapped_column(String, nullable=False, default="")
+    key_stakeholder: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     user_id: Mapped[Optional[str]] = mapped_column(String, nullable=True, index=True)
 
 
@@ -139,6 +142,9 @@ class Subcomponent(TimestampMixin, SoftDeleteMixin, Base):
     dependencies: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     work_estimate: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     completed_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    owner: Mapped[str] = mapped_column(String, nullable=False, default="")
+    assignee: Mapped[str] = mapped_column(String, nullable=False, default="")
+    approver: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     user_id: Mapped[Optional[str]] = mapped_column(String, nullable=True, index=True)
 
 

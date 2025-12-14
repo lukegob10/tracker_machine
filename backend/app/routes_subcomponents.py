@@ -5,7 +5,6 @@ from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, status, BackgroundTasks
 from fastapi.responses import StreamingResponse
-from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from .deps import get_db
@@ -27,7 +26,6 @@ from .utils import (
     read_csv,
 )
 from .realtime import schedule_broadcast
-from .utils import get_default_user_id
 
 router = APIRouter()
 
@@ -157,6 +155,9 @@ def create_subcomponent(
         dependencies=payload.dependencies,
         work_estimate=payload.work_estimate,
         completed_at=completed_at,
+        owner=payload.owner,
+        assignee=payload.assignee,
+        approver=payload.approver,
         created_at=now,
         updated_at=now,
         user_id=get_default_user_id(),
@@ -198,9 +199,12 @@ def import_subcomponents(file: UploadFile = File(...), session: Session = Depend
         solution_name = normalize_str(row.get("solution_name"))
         sub_name = normalize_str(row.get("subcomponent_name"))
         version_raw = normalize_str(row.get("version")) or "0.1.0"
-        if not project_name or not solution_name or not sub_name:
+        owner_val = normalize_str(row.get("owner"))
+        assignee_val = normalize_str(row.get("assignee"))
+        approver_val = normalize_str(row.get("approver")) or None
+        if not project_name or not solution_name or not sub_name or not owner_val or not assignee_val:
             errors.append(
-                f"Row {idx}: project_name, solution_name, and subcomponent_name are required"
+                f"Row {idx}: project_name, solution_name, subcomponent_name, owner, and assignee are required"
             )
             continue
         key = (project_name.lower(), solution_name.lower(), version_raw.lower(), sub_name.lower())
@@ -241,11 +245,13 @@ def import_subcomponents(file: UploadFile = File(...), session: Session = Depend
             except ValueError as exc:
                 errors.append(f"Row {idx}: {exc}")
                 continue
+            sponsor_val = owner_val or "Auto-created"
             project = Project(
                 project_name=project_name,
                 name_abbreviation=abbr,
                 status=ProjectStatus.not_started,
                 description=None,
+                sponsor=sponsor_val,
                 user_id=get_default_user_id(),
             )
             session.add(project)
@@ -264,6 +270,8 @@ def import_subcomponents(file: UploadFile = File(...), session: Session = Depend
                     version=version_raw,
                     status=SolutionStatus.not_started,
                     description=None,
+                    owner=owner_val or "Auto-created",
+                    key_stakeholder=None,
                     user_id=get_default_user_id(),
                 )
                 session.add(solution)
@@ -299,6 +307,9 @@ def import_subcomponents(file: UploadFile = File(...), session: Session = Depend
                 existing.category = category
                 existing.dependencies = dependencies
                 existing.work_estimate = work_estimate
+                existing.owner = owner_val
+                existing.assignee = assignee_val
+                existing.approver = approver_val
                 existing.updated_at = datetime.now(timezone.utc)
                 if status_enum == SubcomponentStatus.complete and not existing.completed_at:
                     existing.completed_at = datetime.now(timezone.utc)
@@ -322,6 +333,9 @@ def import_subcomponents(file: UploadFile = File(...), session: Session = Depend
                     category=category,
                     dependencies=dependencies,
                     work_estimate=work_estimate,
+                    owner=owner_val,
+                    assignee=assignee_val,
+                    approver=approver_val,
                     completed_at=completed_at,
                     user_id=get_default_user_id(),
                 )
@@ -374,6 +388,9 @@ def export_subcomponents(session: Session = Depends(get_db)):
         "category",
         "dependencies",
         "work_estimate",
+        "owner",
+        "assignee",
+        "approver",
     ]
     writer = csv.DictWriter(buffer, fieldnames=fieldnames)
     writer.writeheader()
@@ -394,6 +411,9 @@ def export_subcomponents(session: Session = Depends(get_db)):
                 "category": sc.category or "",
                 "dependencies": sc.dependencies or "",
                 "work_estimate": sc.work_estimate if sc.work_estimate is not None else "",
+                "owner": sc.owner or "",
+                "assignee": sc.assignee or "",
+                "approver": sc.approver or "",
             }
         )
     buffer.seek(0)

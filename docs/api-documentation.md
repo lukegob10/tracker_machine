@@ -18,25 +18,25 @@ Content-Type: `application/json`
 - `GET /projects?status=<not_started|active|on_hold|complete|abandoned>`
 - `POST /projects`
 ```json
-{ "project_name": "Data Platform", "name_abbreviation": "DPLT", "status": "active", "description": "..." }
+{ "project_name": "Data Platform", "name_abbreviation": "DPLT", "status": "active", "sponsor": "CFO Office", "description": "..." }
 ```
 - `GET /projects/{project_id}`
-- `PATCH /projects/{project_id}` (partial: status, name_abbreviation, project_name, description)
+- `PATCH /projects/{project_id}` (partial: status, name_abbreviation, project_name, description, sponsor)
 - `DELETE /projects/{project_id}` (soft delete)
 - Responses include `user_id` set by the server account/env.
-- Bulk CSV: `POST /projects/import` (fields: project_name, name_abbreviation, status, description; strict-first duplicate detection), `GET /projects/export` (CSV download)
+- Bulk CSV: `POST /projects/import` (fields: project_name, name_abbreviation, status, description, sponsor; strict-first duplicate detection), `GET /projects/export` (CSV download)
 
 ## Solutions (scoped to project)
 - `GET /projects/{project_id}/solutions?status=<not_started|active|on_hold|complete|abandoned>`
 - `POST /projects/{project_id}/solutions`
 ```json
-{ "solution_name": "Access Controls", "version": "0.2.0", "status": "active", "description": "..." }
+{ "solution_name": "Access Controls", "version": "0.2.0", "status": "active", "owner": "Solution Owner", "key_stakeholder": "Finance Ops", "description": "..." }
 ```
 - `GET /solutions/{solution_id}`
-- `PATCH /solutions/{solution_id}` (partial: solution_name, version, status, description)
+- `PATCH /solutions/{solution_id}` (partial: solution_name, version, status, description, owner, key_stakeholder)
 - `DELETE /solutions/{solution_id}` (soft delete)
 - Responses include `user_id` set by the server account/env.
-- Bulk CSV: `POST /solutions/import` (fields: project_name, solution_name, version, status, description; creates missing projects; strict-first duplicates), `GET /solutions/export` (CSV download)
+- Bulk CSV: `POST /solutions/import` (fields: project_name, solution_name, version, status, description, owner (required), key_stakeholder; creates missing projects; strict-first duplicates), `GET /solutions/export` (CSV download)
 
 ## Phases (global) and Solution Phases
 - `GET /phases` → ordered list `{ phase_id, phase_group, phase_name, sequence }`
@@ -62,15 +62,18 @@ Content-Type: `application/json`
   "due_date": "2024-02-01",
   "sub_phase": "requirements",
   "description": "Document role matrix",
-  "notes": "Align with security"
+  "notes": "Align with security",
+  "owner": "Subcomponent Owner",
+  "assignee": "Engineer A",
+  "approver": "Risk Lead"
 }
 ```
 - `GET /subcomponents/{subcomponent_id}`
-- `PATCH /subcomponents/{subcomponent_id}` (partial: name, status, priority, due_date, sub_phase, description, notes, category, dependencies, work_estimate)
+- `PATCH /subcomponents/{subcomponent_id}` (partial: name, status, priority, due_date, sub_phase, description, notes, category, dependencies, work_estimate, owner, assignee, approver)
 - `DELETE /subcomponents/{subcomponent_id}` (soft delete)
 - Rules: `sub_phase` must be among enabled phases for the solution; name unique per solution; `priority` 0–5.
 - Responses include `user_id` set by the server account/env.
-- Bulk CSV: `POST /subcomponents/import` (fields: project_name, solution_name, version (optional, defaults to 0.1.0), subcomponent_name, status, priority, due_date, sub_phase, description, notes, category, dependencies, work_estimate; creates missing projects/solutions; strict-first duplicates), `GET /subcomponents/export` (CSV download)
+- Bulk CSV: `POST /subcomponents/import` (fields: project_name, solution_name, version (optional, defaults to 0.1.0), subcomponent_name, status, priority, due_date, sub_phase, description, notes, category, dependencies, work_estimate, owner (required), assignee (required), approver; creates missing projects/solutions; strict-first duplicates), `GET /subcomponents/export` (CSV download)
 
 ## Checklist (subcomponent phase completion)
 - `GET /subcomponents/{subcomponent_id}/phases` → syncs rows to enabled phases, returns `{ solution_phase_id, phase_id, is_complete, completed_at }`
