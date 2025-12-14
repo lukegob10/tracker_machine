@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 from io import StringIO
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, status
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, status, BackgroundTasks
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
@@ -19,6 +19,7 @@ from .utils import (
     normalize_str,
     read_csv,
 )
+from .realtime import schedule_broadcast
 from .utils import get_default_user_id
 
 router = APIRouter()
@@ -77,6 +78,7 @@ def create_solution(
     project_id: str,
     payload: SolutionCreate,
     session: Session = Depends(get_db),
+    tasks: BackgroundTasks = None,
 ):
     _ensure_project_exists(session, project_id)
 
@@ -106,11 +108,12 @@ def create_solution(
     session.refresh(solution)
     enable_all_phases(session, solution.solution_id)
     session.refresh(solution)
+    schedule_broadcast("solutions")
     return solution
 
 
 @router.post("/solutions/import")
-def import_solutions(file: UploadFile = File(...), session: Session = Depends(get_db)):
+def import_solutions(file: UploadFile = File(...), session: Session = Depends(get_db), tasks: BackgroundTasks = None):
     rows, errors = read_csv(file.file.read())
     if errors:
         return {"created": 0, "updated": 0, "projects_created": 0, "errors": errors, "total_rows": 0}
@@ -197,6 +200,7 @@ def import_solutions(file: UploadFile = File(...), session: Session = Depends(ge
         except Exception as exc:
             session.rollback()
             errors.append(f"Row {idx}: {exc}")
+    schedule_broadcast("solutions")
     return {
         "created": created,
         "updated": updated,
@@ -242,6 +246,7 @@ def update_solution(
     solution_id: str,
     payload: SolutionUpdate,
     session: Session = Depends(get_db),
+    tasks: BackgroundTasks = None,
 ):
     solution = _get_solution_or_404(session, solution_id)
 
@@ -268,15 +273,17 @@ def update_solution(
     session.add(solution)
     session.commit()
     session.refresh(solution)
+    schedule_broadcast("solutions")
     return solution
 
 
 @router.delete("/solutions/{solution_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_solution(solution_id: str, session: Session = Depends(get_db)):
+def delete_solution(solution_id: str, session: Session = Depends(get_db), tasks: BackgroundTasks = None):
     solution = _get_solution_or_404(session, solution_id)
     now = datetime.now(timezone.utc)
     solution.deleted_at = now
     solution.updated_at = now
     session.add(solution)
     session.commit()
+    schedule_broadcast("solutions")
     return None

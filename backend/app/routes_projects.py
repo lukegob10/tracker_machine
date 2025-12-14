@@ -4,7 +4,7 @@ from typing import List, Optional
 import csv
 from io import StringIO
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, status
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, status, BackgroundTasks
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
@@ -13,7 +13,7 @@ from .enums import ProjectStatus
 from .models import Project
 from .schemas import ProjectCreate, ProjectRead, ProjectUpdate
 from .utils import derive_abbreviation, get_default_user_id, normalize_status, normalize_str, read_csv
-from .utils import get_default_user_id
+from .realtime import schedule_broadcast
 
 router = APIRouter()
 
@@ -49,7 +49,7 @@ def list_projects(
 
 @router.post("", response_model=ProjectRead, status_code=status.HTTP_201_CREATED)
 @router.post("/", response_model=ProjectRead, status_code=status.HTTP_201_CREATED)
-def create_project(payload: ProjectCreate, session: Session = Depends(get_db)):
+def create_project(payload: ProjectCreate, session: Session = Depends(get_db), tasks: BackgroundTasks = None):
     existing = (
         session.query(Project)
         .filter(Project.project_name == payload.project_name)
@@ -71,11 +71,12 @@ def create_project(payload: ProjectCreate, session: Session = Depends(get_db)):
     session.add(project)
     session.commit()
     session.refresh(project)
+    schedule_broadcast("projects")
     return project
 
 
 @router.post("/import")
-def import_projects(file: UploadFile = File(...), session: Session = Depends(get_db)):
+def import_projects(file: UploadFile = File(...), session: Session = Depends(get_db), tasks: BackgroundTasks = None):
     rows, errors = read_csv(file.file.read())
     if errors:
         return {"created": 0, "updated": 0, "errors": errors, "total_rows": 0}
@@ -133,6 +134,7 @@ def import_projects(file: UploadFile = File(...), session: Session = Depends(get
         except Exception as exc:
             session.rollback()
             errors.append(f"Row {idx}: {exc}")
+    schedule_broadcast("projects")
     return {"created": created, "updated": updated, "errors": errors, "total_rows": len(rows)}
 
 
@@ -164,7 +166,7 @@ def get_project(project_id: str, session: Session = Depends(get_db)):
 
 
 @router.patch("/{project_id}", response_model=ProjectRead)
-def update_project(project_id: str, payload: ProjectUpdate, session: Session = Depends(get_db)):
+def update_project(project_id: str, payload: ProjectUpdate, session: Session = Depends(get_db), tasks: BackgroundTasks = None):
     project = _get_project_or_404(session, project_id)
 
     update_data = payload.model_dump(exclude_unset=True)
@@ -188,15 +190,17 @@ def update_project(project_id: str, payload: ProjectUpdate, session: Session = D
     session.add(project)
     session.commit()
     session.refresh(project)
+    schedule_broadcast("projects")
     return project
 
 
 @router.delete("/{project_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_project(project_id: str, session: Session = Depends(get_db)):
+def delete_project(project_id: str, session: Session = Depends(get_db), tasks: BackgroundTasks = None):
     project = _get_project_or_404(session, project_id)
     now = datetime.now(timezone.utc)
     project.deleted_at = now
     project.updated_at = now
     session.add(project)
     session.commit()
+    schedule_broadcast("projects")
     return None

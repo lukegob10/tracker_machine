@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 from typing import List
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
 from sqlalchemy.orm import Session
 
 from .deps import get_db
@@ -13,6 +13,7 @@ from .models import (
     SubcomponentPhaseStatus,
 )
 from .schemas import SubcomponentPhaseRead, SubcomponentPhaseUpdate
+from .realtime import schedule_broadcast
 
 router = APIRouter()
 
@@ -104,6 +105,7 @@ def bulk_update_checklist(
     subcomponent_id: str,
     payload: dict,
     session: Session = Depends(get_db),
+    tasks: BackgroundTasks = None,
 ):
     subcomponent = _get_subcomponent(session, subcomponent_id)
     updates = payload.get("updates", [])
@@ -133,4 +135,5 @@ def bulk_update_checklist(
     # refresh
     for row in items:
         session.refresh(row)
+    schedule_broadcast("subcomponents")
     return items
