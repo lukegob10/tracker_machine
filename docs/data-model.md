@@ -5,9 +5,9 @@ SQLite schema for Jira-lite with projects, solutions, and subcomponents. All tim
 User attribution: `user_id` is auto-populated server-side (currently the server account or `JIRA_LITE_USER_ID`/`USER`/`USERNAME`/`LOGNAME` if set); clients do not pass it yet.
 
 ## Entities at a Glance
-- Project: top-level container with name, 4-char abbreviation, status, and description; stores `project_id`, `user_id`, timestamps, and soft delete metadata but those fields are not surfaced in the UI.
-- Solution: versioned deliverable that belongs to a project; can enable/disable phases to fit its workflow; stores `solution_id`, `user_id`, timestamps, and soft delete metadata.
-- Subcomponent: granular work item belonging to a project + solution; prioritized with status, priority, due date, and a `sub_phase` (phase slug) that drives progress; optional per-phase checklist for UX; stores `subcomponent_id`, `user_id`, timestamps, and soft delete metadata.
+- Project: top-level container with name, 4-char abbreviation, status, description, and a required Sponsor; stores `project_id`, `user_id`, timestamps, and soft delete metadata but those fields are not surfaced in the UI.
+- Solution: versioned deliverable that belongs to a project; carries required Solution Owner (R+A) and optional Key Stakeholder (Consulted); can enable/disable phases to fit its workflow; stores `solution_id`, `user_id`, timestamps, and soft delete metadata.
+- Subcomponent: granular work item belonging to a project + solution; prioritized with status, priority, due date, and a `sub_phase` (phase slug) that drives progress; also captures Owner (accountable), Assignee (executing), and optional Approver (gate); optional per-phase checklist for UX; stores `subcomponent_id`, `user_id`, timestamps, and soft delete metadata.
 
 ## Table Definitions (simplified)
 
@@ -19,6 +19,7 @@ User attribution: `user_id` is auto-populated server-side (currently the server 
 | name_abbreviation | TEXT     | 4-character code            |
 | status            | TEXT     | Project lifecycle status    |
 | description       | TEXT     | Project summary             |
+| sponsor           | TEXT     | Accountable/Sponsor (required) |
 | user_id           | TEXT     | Owner/user reference        |
 | created_at        | DATETIME | Created timestamp           |
 | updated_at        | DATETIME | Last updated timestamp      |
@@ -29,8 +30,8 @@ Allowed values
 - check: enforce `name_abbreviation` length = 4 via validation/constraint
 
 Validation & Defaults
-- Required: `project_name`, `name_abbreviation`, `status`; `description` optional.
-- Defaults: `status` defaults to `not_started`.
+- Required: `project_name`, `name_abbreviation`, `status`, `sponsor`; `description` optional.
+- Defaults: `status` defaults to `not_started`; `sponsor` must be provided on create/import (UI-enforced; server stores empty string only for legacy/import edge cases).
 - Normalization: enforce `name_abbreviation` length = 4; optionally uppercase in validation.
 - Soft delete: `deleted_at` set instead of hard delete; default queries exclude soft-deleted rows.
 
@@ -47,6 +48,8 @@ Indexes
 | version        | TEXT     | Version string (e.g., 0.1.0)|
 | status         | TEXT     | Solution lifecycle status   |
 | description    | TEXT     | Summary/notes               |
+| owner          | TEXT     | Solution Owner (R + A, required) |
+| key_stakeholder| TEXT     | Consulted stakeholder (optional) |
 | user_id        | TEXT     | Owner/user reference        |
 | created_at     | DATETIME | Created timestamp           |
 | updated_at     | DATETIME | Last updated timestamp      |
@@ -56,8 +59,8 @@ Allowed values
 - status: `not_started`, `active`, `on_hold`, `complete`, `abandoned`
 
 Validation & Defaults
-- Required: `project_id`, `solution_name`, `version`, `status`; `description` optional.
-- Defaults: `status` defaults to `not_started`.
+- Required: `project_id`, `solution_name`, `version`, `status`, `owner`; `description` optional; `key_stakeholder` optional.
+- Defaults: `status` defaults to `not_started`; `owner` required in UI/CSV; `key_stakeholder` may be null/blank.
 - Uniqueness: `(project_id, solution_name, version)` must be unique among non-deleted rows.
 
 Indexes
@@ -146,6 +149,9 @@ Validation & Defaults
 | category          | TEXT     | Optional category               |
 | dependencies      | TEXT     | Related subcomponent IDs/list   |
 | work_estimate     | REAL     | Estimate (hours/points)         |
+| owner             | TEXT     | Accountable owner (required)    |
+| assignee          | TEXT     | Executing individual (required) |
+| approver          | TEXT     | Gate/approver (optional)        |
 | created_at        | DATETIME | Created timestamp               |
 | updated_at        | DATETIME | Last updated timestamp          |
 | completed_at      | DATETIME | When marked complete            |
@@ -164,8 +170,8 @@ Allowed values
 - Checklist: one `subcomponent_phase_status` row per enabled `solution_phase` to show phases and check off completion; keep the checked phase at or before the current `sub_phase`.
 
 Validation & Defaults
-- Required: `project_id`, `solution_id`, `subcomponent_name`, `status`; `description` optional.
-- Defaults: `status` defaults to `to_do`; `priority` defaults to 3 (mid); `sub_phase` null when no phases are enabled.
+- Required: `project_id`, `solution_id`, `subcomponent_name`, `status`, `owner`, `assignee`; `description` optional.
+- Defaults: `status` defaults to `to_do`; `priority` defaults to 3 (mid); `owner`/`assignee` required in UI/CSV; `sub_phase` null when no phases are enabled.
 - Constraints: `priority` must be between 0 and 5 inclusive; `sub_phase` must be one of the enabled phases for the solution when set.
 - Progress state: if `status = complete`, set `completed_at` and `sub_phase` to the last enabled phase; reject `sub_phase` when no phases are enabled.
 - Uniqueness: `(solution_id, subcomponent_name)` must be unique among non-deleted rows.

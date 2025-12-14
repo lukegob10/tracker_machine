@@ -11,12 +11,14 @@ class ProjectBase(BaseModel):
     name_abbreviation: Optional[constr(min_length=4, max_length=4)] = None  # type: ignore[type-arg]
     status: Optional[ProjectStatus] = None
     description: Optional[str] = None
+    sponsor: Optional[str] = None
 
 
 class ProjectCreate(ProjectBase):
     project_name: str
     name_abbreviation: constr(min_length=4, max_length=4)  # type: ignore[type-arg]
     status: ProjectStatus = ProjectStatus.not_started
+    sponsor: str
 
 
 class ProjectUpdate(ProjectBase):
@@ -31,6 +33,7 @@ class ProjectRead(BaseModel):
     name_abbreviation: str
     status: ProjectStatus
     description: Optional[str] = None
+    sponsor: Optional[str] = None
     user_id: Optional[str] = None
     created_at: datetime
     updated_at: datetime
@@ -41,12 +44,15 @@ class SolutionBase(BaseModel):
     version: Optional[str] = None
     status: Optional[SolutionStatus] = None
     description: Optional[str] = None
+    owner: Optional[str] = None
+    key_stakeholder: Optional[str] = None
 
 
 class SolutionCreate(SolutionBase):
     solution_name: str
     version: str
     status: SolutionStatus = SolutionStatus.not_started
+    owner: str
 
 
 class SolutionUpdate(SolutionBase):
@@ -62,6 +68,8 @@ class SolutionRead(BaseModel):
     version: str
     status: SolutionStatus
     description: Optional[str] = None
+    owner: Optional[str] = None
+    key_stakeholder: Optional[str] = None
     user_id: Optional[str] = None
     created_at: datetime
     updated_at: datetime
@@ -107,12 +115,17 @@ class SubcomponentBase(BaseModel):
     category: Optional[str] = None
     dependencies: Optional[str] = None
     work_estimate: Optional[float] = None
+    owner: Optional[str] = None
+    assignee: Optional[str] = None
+    approver: Optional[str] = None
 
 
 class SubcomponentCreate(SubcomponentBase):
     subcomponent_name: str
     status: SubcomponentStatus = SubcomponentStatus.to_do
     priority: int = 3
+    owner: str
+    assignee: str
 
 
 class SubcomponentUpdate(SubcomponentBase):
@@ -135,6 +148,9 @@ class SubcomponentRead(BaseModel):
     category: Optional[str] = None
     dependencies: Optional[str] = None
     work_estimate: Optional[float] = None
+    owner: Optional[str] = None
+    assignee: Optional[str] = None
+    approver: Optional[str] = None
     user_id: Optional[str] = None
     completed_at: Optional[datetime] = None
     created_at: datetime

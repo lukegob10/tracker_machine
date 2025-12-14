@@ -86,6 +86,7 @@
                     <option value="abandoned">Abandoned</option>
                   </select>
                 </label>
+                <label>Sponsor <input name="sponsor" required /></label>
                 <label class="full-span">Description <textarea name="description"></textarea></label>
                 <div class="form-actions full-span">
                   <button type="submit">Save Edit</button>
@@ -128,6 +129,8 @@
                     <option value="abandoned">Abandoned</option>
                   </select>
                 </label>
+                <label class="wide">Solution Owner <input name="owner" required /></label>
+                <label class="wide">Key Stakeholder <input name="key_stakeholder" /></label>
                 <label class="full-span">Description <textarea name="description"></textarea></label>
                 <div class="form-actions full-span">
                   <button type="submit">Save Edit</button>
@@ -180,7 +183,10 @@
                 <option value="abandoned">Abandoned</option>
               </select>
             </label>
-            <label class="full-span">Name <input name="subcomponent_name" required /></label>
+            <label>Owner <input name="owner" required /></label>
+            <label>Assignee <input name="assignee" required /></label>
+            <label>Approver <input name="approver" /></label>
+            <label class="full-span">Component <input name="subcomponent_name" required /></label>
             <label class="full-span">Description <textarea name="description"></textarea></label>
             <label class="full-span">Notes <textarea name="notes"></textarea></label>
             <div class="form-actions full-span">

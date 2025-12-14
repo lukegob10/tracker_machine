@@ -20,7 +20,6 @@ from .utils import (
     read_csv,
 )
 from .realtime import schedule_broadcast
-from .utils import get_default_user_id
 
 router = APIRouter()
 
@@ -101,6 +100,8 @@ def create_solution(
         version=payload.version,
         status=payload.status,
         description=payload.description,
+        owner=payload.owner,
+        key_stakeholder=payload.key_stakeholder,
         user_id=get_default_user_id(),
     )
     session.add(solution)
@@ -130,8 +131,10 @@ def import_solutions(file: UploadFile = File(...), session: Session = Depends(ge
         project_name = normalize_str(row.get("project_name"))
         solution_name = normalize_str(row.get("solution_name"))
         version_raw = normalize_str(row.get("version")) or "0.1.0"
-        if not project_name or not solution_name:
-            errors.append(f"Row {idx}: project_name and solution_name are required")
+        owner = normalize_str(row.get("owner"))
+        key_stakeholder = normalize_str(row.get("key_stakeholder"))
+        if not project_name or not solution_name or not owner:
+            errors.append(f"Row {idx}: project_name, solution_name, and owner are required")
             continue
         key = (project_name.lower(), solution_name.lower(), version_raw.lower())
         if key in seen:
@@ -180,6 +183,8 @@ def import_solutions(file: UploadFile = File(...), session: Session = Depends(ge
             if existing:
                 existing.status = status_enum
                 existing.description = description
+                existing.owner = owner
+                existing.key_stakeholder = key_stakeholder or None
                 existing.updated_at = datetime.now(timezone.utc)
                 session.add(existing)
                 updated += 1
@@ -191,6 +196,8 @@ def import_solutions(file: UploadFile = File(...), session: Session = Depends(ge
                     version=version_raw,
                     status=status_enum,
                     description=description,
+                    owner=owner,
+                    key_stakeholder=key_stakeholder or None,
                     user_id=get_default_user_id(),
                 )
                 session.add(solution)
@@ -217,7 +224,7 @@ def export_solutions(session: Session = Depends(get_db)):
         p.project_id: p.project_name for p in session.query(Project).filter(Project.deleted_at.is_(None))
     }
     buffer = StringIO()
-    fieldnames = ["project_name", "solution_name", "version", "status", "description"]
+    fieldnames = ["project_name", "solution_name", "version", "status", "description", "owner", "key_stakeholder"]
     writer = csv.DictWriter(buffer, fieldnames=fieldnames)
     writer.writeheader()
     for s in solutions:
@@ -228,6 +235,8 @@ def export_solutions(session: Session = Depends(get_db)):
                 "version": s.version,
                 "status": s.status.value if hasattr(s.status, "value") else s.status,
                 "description": s.description or "",
+                "owner": s.owner or "",
+                "key_stakeholder": s.key_stakeholder or "",
             }
         )
     buffer.seek(0)
