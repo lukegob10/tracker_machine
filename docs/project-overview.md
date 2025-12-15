@@ -1,185 +1,80 @@
-# Jira-lite Project Overview
+# Jira-lite Project Overview (Comprehensive)
 
-## Goal
-A lightweight tracker with a static HTML/JavaScript frontend and a FastAPI backend served by Uvicorn. Uses SQLite (created at startup) to keep setup simple for a small team (10–25 users).
+## Purpose and Value
+- Lightweight tracker for Projects → Solutions → Subcomponents with phase-aware progress, CSV import/export, and a static UI. Optimized for small teams (10–25 users) and fast, low-dependency setup.
+- Bank fit: keeps data local (SQLite by default), pure JSON APIs, soft deletes with timestamps, and no external SaaS dependencies in the baseline.
 
-## Tech Stack
-- Backend: Python, FastAPI, Uvicorn, SQLAlchemy for SQLite.
-- Frontend: Static HTML + vanilla JavaScript (Fetch API), minimal CSS; served as static files by FastAPI.
-- Database: SQLite file in `./db/app.db`; WAL mode recommended for concurrency.
+## Scope and Boundaries
+- In scope: CRUD for projects/solutions/subcomponents; per-solution phase toggles and derived progress; optional per-phase checklist; CSV import/export; static frontend served by FastAPI.
+- Out of scope today: authentication/authorization, RBAC, SSO, PII tagging, DLP, encryption at rest, audit log streaming, backups/DR, HA/failover, workflow/approvals, notifications.
 
-## Data Model (current)
-- Projects: `project_name`, `name_abbreviation` (4-char), `status`, `description`; metadata: `project_id`, `user_id`, timestamps, `deleted_at`; unique on `project_name`.
-- Solutions: belong to a project; `solution_name`, `version`, `status`, `description`; metadata: `solution_id`, `user_id`, timestamps, `deleted_at`; unique on (`project_id`, `solution_name`, `version`); can enable/disable phases and override ordering.
-- Phases: global ordered list of sub-phases (Backlog, Planning, Development, Deployment & Testing, Closure) with `phase_id` slugs used as `sub_phase` values.
-- Solution phases: per-solution toggles and optional sequence overrides to define enabled phases for progress.
-- Subcomponents: belong to a project + solution; `subcomponent_name`, `status`, `priority` (0 highest), `due_date` (YYYY-MM-DD), `sub_phase`, `description`, `notes`; optional `category`, `dependencies`, `work_estimate`; metadata: `subcomponent_id`, `user_id`, timestamps, `deleted_at`; unique name within a solution.
-- Subcomponent phase status: optional checklist rows per enabled phase to show phases and check off completion; keep aligned with `sub_phase`.
-- Progress: if status = complete, 100%; otherwise derived from the position of `sub_phase` within enabled phases.
-- Soft deletes (`deleted_at`) on core tables; see `docs/data-model.md` for full field definitions.
-- User attribution: `user_id` is set server-side from the host account or env override (`JIRA_LITE_USER_ID`/`USER`/`USERNAME`/`LOGNAME`); clients do not pass a user header yet.
+## Current Readiness (dev)
+- AuthN/AuthZ: none in dev; all endpoints open. Needs enterprise auth (OIDC/SAML/LDAP) and RBAC before production.
+- Data/storage: SQLite file `db/app.db` on host; no at-rest encryption; no backups or retention policy.
+- Observability: standard FastAPI logging only; no structured audit/event logs or metrics.
+- Availability: single instance + SQLite; no clustering/replication; no DR plan.
+- Compliance gaps: no secrets management, no change controls, no vulnerability management pipeline.
 
-## API Surface (Option A: minimal)
-- Health: `GET /health`.
-- Projects: `GET/POST /projects`, `GET/PATCH/DELETE /projects/{project_id}` (DELETE = soft delete).
-- Solutions: `GET/POST /projects/{project_id}/solutions`, `GET/PATCH/DELETE /solutions/{solution_id}`.
-- Phases: `GET /phases` (global list), `GET/POST /solutions/{solution_id}/phases` to enable/disable and set sequence.
-- Subcomponents: `GET/POST /solutions/{solution_id}/subcomponents`, `GET/PATCH/DELETE /subcomponents/{subcomponent_id}`; filters on `status`, `sub_phase`, `priority`, `due_before`, `due_after`.
-- Checklist: `GET /subcomponents/{subcomponent_id}/phases` (enabled phases + completion flags), `POST /subcomponents/{subcomponent_id}/phases/bulk` to mark complete/incomplete.
-- Filters (query params on list endpoints): `status`, `sub_phase`, `priority`, `due_before`, `due_after`, `search`.
-- All responses JSON; errors return JSON with `detail`.
+## Architecture and Runtime
+- Backend: FastAPI + Uvicorn; routes under `/api`; health at `/health`; interactive docs at `/docs` and `/redoc`.
+- Frontend: static HTML/JS served from `/frontend` mounted at `/`.
+- Database: SQLite at `db/app.db`; WAL recommended; tables auto-created on startup; phases seeded; optional sample data via `SAMPLE_SEED=true`.
+- Packaging: Python dependencies in `backend/requirements.txt`; no container spec committed yet.
 
-## API Payload Examples
+## Data Model (summary; see `docs/data-model.md`)
+- Projects: `project_name`, 4-char `name_abbreviation`, `status`, `description`, `sponsor` (required); soft delete; `user_id` set server-side.
+- Solutions: belong to Project; `solution_name`, `version`, `status`, `description`, `owner` (required), `key_stakeholder` optional; soft delete.
+- Phases: global ordered list; per-solution toggles/overrides via `solution_phases`.
+- Subcomponents: belong to Project + Solution; `subcomponent_name`, `status`, `priority` (0–5), `due_date`, `sub_phase`, `description`, `notes`, `category`, `dependencies`, `work_estimate`, `owner` (required), `assignee` (required), optional `approver`; soft delete; `completed_at` when done.
+- Checklist: `subcomponent_phase_status` mirrors enabled phases per subcomponent for UI check-off.
 
-Projects
-- Create `POST /projects`
-```json
-{
-  "project_name": "Data Platform",
-  "name_abbreviation": "DPLT",
-  "status": "active",
-  "description": "Modernize data stack"
-}
-```
-- Response (201)
-```json
-{
-  "project_id": "uuid",
-  "project_name": "Data Platform",
-  "name_abbreviation": "DPLT",
-  "status": "active",
-  "description": "Modernize data stack",
-  "user_id": "server_user",
-  "created_at": "2024-01-10T12:00:00Z",
-  "updated_at": "2024-01-10T12:00:00Z"
-}
-```
-- Update `PATCH /projects/{project_id}` (partial)
-```json
-{ "status": "on_hold", "description": "Waiting on budget" }
-```
+## API Surface (see `docs/api-documentation.md`)
+- Projects: `GET/POST/PATCH/DELETE /api/projects`; CSV `POST /api/projects/import`, `GET /api/projects/export`.
+- Solutions: `GET/POST /api/projects/{project_id}/solutions`, `GET/PATCH/DELETE /api/solutions/{solution_id}`; CSV import/export.
+- Phases: `GET /api/phases`; per-solution toggles `GET/POST /api/solutions/{solution_id}/phases`.
+- Subcomponents: `GET/POST /api/solutions/{solution_id}/subcomponents`, `GET/PATCH/DELETE /api/subcomponents/{subcomponent_id}`; CSV import/export.
+- Checklist: `GET /api/subcomponents/{id}/phases`; bulk update `POST /api/subcomponents/{id}/phases/bulk`.
+- Errors: JSON `{ "detail": "message" }`. Soft deletes hide rows from list/get.
 
-Solutions
-- Create `POST /projects/{project_id}/solutions`
-```json
-{
-  "solution_name": "Access Controls",
-  "version": "0.2.0",
-  "status": "active",
-  "description": "Iterate on RBAC and audit logging"
-}
-```
-- Response (201)
-```json
-{
-  "solution_id": "uuid",
-  "project_id": "uuid",
-  "solution_name": "Access Controls",
-  "version": "0.2.0",
-  "status": "active",
-  "description": "Iterate on RBAC and audit logging",
-  "user_id": "server_user",
-  "created_at": "2024-01-10T12:05:00Z",
-  "updated_at": "2024-01-10T12:05:00Z"
-}
-```
-- Update `PATCH /solutions/{solution_id}` (partial)
-```json
-{ "status": "complete", "description": "Shipped in v0.2.0" }
-```
+## Frontend Flows (see `docs/ui-overview.md`)
+- Projects + Solutions stacked view: enforce sponsor (projects) and owner (solutions), with phase toggles per solution.
+- Subcomponents view: enforce owner/assignee and priority 0–5; select sub_phase from enabled phases; optional checklist.
+- Master list, Kanban, and Calendar views with filters on status/project/solution/sub_phase/priority/dates; CSV actions can live in a secondary menu.
 
-Phases and Solution Phases
-- List global phases `GET /phases` → array of `{ phase_id, phase_group, phase_name, sequence }`.
-- Get enabled phases for a solution `GET /solutions/{solution_id}/phases`.
-- Set enabled phases + ordering `POST /solutions/{solution_id}/phases`
-```json
-{
-  "phases": [
-    { "phase_id": "backlog", "is_enabled": true },
-    { "phase_id": "requirements", "is_enabled": true, "sequence_override": 2 },
-    { "phase_id": "uat_deployment", "is_enabled": false }
-  ]
-}
-```
-- Response echoes enabled phases with applied order.
+## Positioning within a Bank Environment
+- Data classification: currently untagged; assume non-PII until reviewed. No masking/DLP.
+- Identity & access: must add SSO (OIDC/SAML), user accounts, roles (Admin/Editor/Viewer at minimum), and project-level scoping before production.
+- Auditability: needs structured audit logs for auth, CRUD, imports/exports, and checklist changes; ship to SIEM.
+- Security & secrets: add TLS termination, secrets manager for config, at-rest encryption (DB/files), and CSRF protection if forms evolve.
+- Resilience: move to Postgres, add migrations, backups (PITR), DR runbook; deploy behind LB with health checks.
+- Change management: CI with lint/tests, tagged releases, environment promotion, infra-as-code.
+- Third-party exposure: none beyond Python packages; verify supply-chain scanning.
 
-Subcomponents
-- Create `POST /solutions/{solution_id}/subcomponents`
-```json
-{
-  "subcomponent_name": "Define RBAC roles",
-  "status": "in_progress",
-  "priority": 1,
-  "due_date": "2024-02-01",
-  "sub_phase": "requirements",
-  "description": "Document role matrix",
-  "notes": "Align with security"
-}
-```
-- Response (201)
-```json
-{
-  "subcomponent_id": "uuid",
-  "project_id": "uuid",
-  "solution_id": "uuid",
-  "subcomponent_name": "Define RBAC roles",
-  "status": "in_progress",
-  "priority": 1,
-  "due_date": "2024-02-01",
-  "sub_phase": "requirements",
-  "description": "Document role matrix",
-  "notes": "Align with security",
-  "user_id": "server_user",
-  "created_at": "2024-01-10T12:10:00Z",
-  "updated_at": "2024-01-10T12:10:00Z"
-}
-```
-- Update `PATCH /subcomponents/{subcomponent_id}` (partial)
-```json
-{ "status": "complete", "sub_phase": "closure", "priority": 2 }
-```
-- List with filters: `GET /solutions/{solution_id}/subcomponents?status=in_progress&priority=0&sub_phase=requirements`
+## Integration Hooks (future)
+- Webhooks or message bus for downstream systems (e.g., GRC, reporting).
+- Export formats: CSV exists; add PDF/Excel if governance requires.
+- API tokens/keys once auth is in place.
 
-Checklist
-- Get checklist `GET /subcomponents/{subcomponent_id}/phases` → enabled phases with completion flags.
-- Bulk update `POST /subcomponents/{subcomponent_id}/phases/bulk`
-```json
-{
-  "updates": [
-    { "solution_phase_id": "uuid-phase-1", "is_complete": true },
-    { "solution_phase_id": "uuid-phase-2", "is_complete": false }
-  ]
-}
-```
-- Response returns updated checklist rows with `is_complete` and `completed_at`.
+## Risks and Gaps to Close for Enterprise Use
+- No auth/RBAC; open endpoints.
+- No encryption at rest or backups.
+- No audit/event logging.
+- Single-node SQLite; not HA.
+- No vulnerability scanning policy beyond pinned requirements.
+- No operational runbooks or DR/BCP.
 
-Errors
-- All errors return JSON: `{ "detail": "message" }`.
+## Roadmap (proposed)
+- Short term: add auth + RBAC, switch to Postgres, implement audit logs, backups, and config via env/secret manager.
+- Mid term: API tokens, webhooks, improved CSV validation, metrics/dashboard, SLOs.
+- Long term: workflow/approvals, notifications, richer reporting, role-scoped sharing.
 
-## Initialization Flow
-1. On startup, ensure `db/app.db` exists; enable WAL.
-2. Create tables via SQLAlchemy metadata.
-3. Seed: global phases with sequence on startup (idempotent).
-4. Optional sample data: set `SAMPLE_SEED=true` to create a sample project, solution, and subcomponents (idempotent if already present).
+## Deployment Notes
+- Dev: `uvicorn backend.app.main:app --reload` (API at `/api`, UI at `/`).
+- Env vars: `SAMPLE_SEED=true` for demo data; `JIRA_LITE_USER_ID` to override user attribution.
+- Host: mount persistent volume for DB; lock file permissions; run behind HTTPS with TLS termination.
 
-## Frontend Plan
-- Single-page HTML served at `/` that fetches via the API.
-- Views:
-  - Projects: list/create.
-  - Solutions within a project: list/create; configure enabled phases and ordering.
-  - Subcomponents within a solution: list/create; update status, priority, due date, current `sub_phase`.
-  - Phase checklist per subcomponent: show enabled phases and allow check/uncheck.
-- Use vanilla JS modules for fetch/update; keep payloads small and cache phase lists client-side.
-
-## Local Development
-- Install deps: `pip install fastapi uvicorn[standard] sqlmodel`.
-- Run dev server: `uvicorn backend.app.main:app --reload`.
-- SQLite lives in `db/app.db` (ignored by VCS unless we choose to commit seed data).
-- API docs available at `/docs` (Swagger) and `/redoc`.
-
-## Next Steps
-- Scaffold FastAPI app (`app/main.py`, `app/models.py`, `app/routes/*.py`).
-- Implement DB init with WAL and seeding of phases + sample data.
-- Build API routes for projects, solutions, phases, subcomponents, and phase checklist.
-- Add HTML/JS frontend and hook up API calls.
-- Add smoke tests for core endpoints.
+## Related Docs
+- `docs/api-documentation.md`: canonical routes, payloads, CSV behaviors.
+- `docs/data-model.md`: field definitions, enums, constraints.
+- `docs/ui-overview.md`: UI flows and validation.
+- `docs/project-core-principles-assessment.md`: delivery/quality guardrails.

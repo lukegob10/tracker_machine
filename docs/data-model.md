@@ -1,6 +1,6 @@
 # Data Model
 
-SQLite schema for Jira-lite with projects, solutions, and subcomponents. All timestamps stored as ISO8601 in UTC. Foreign keys are enforced (`PRAGMA foreign_keys = ON`).
+SQLite schema for Jira-lite with projects, solutions, and subcomponents. All timestamps stored as ISO8601 in UTC. Foreign keys are enforced (`PRAGMA foreign_keys = ON`). Pair this reference with `docs/api-documentation.md` for routes/payloads and `docs/ui-overview.md` for how the UI exercises these fields.
 
 User attribution: `user_id` is auto-populated server-side (currently the server account or `JIRA_LITE_USER_ID`/`USER`/`USERNAME`/`LOGNAME` if set); clients do not pass it yet.
 

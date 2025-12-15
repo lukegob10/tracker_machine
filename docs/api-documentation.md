@@ -1,47 +1,50 @@
 # Jira-lite API
 
 Base URL (dev): `http://127.0.0.1:8000`  
+API base path: `/api` (all routes below assume this prefix)  
 Docs: `/docs` (Swagger), `/redoc`  
 Auth: none (local/dev)  
-Content-Type: `application/json`
+Content-Type: `application/json`  
+See `docs/data-model.md` for field definitions/constraints.
 
 ## Common
 - Errors: `{ "detail": "message" }`
 - Soft deletes: `DELETE` sets `deleted_at`; list/get skip soft-deleted rows.
-- Timestamps: ISO8601 UTC. Seeded phases on startup.
+- Timestamps: ISO8601 UTC. Phases are seeded on startup.
 - User attribution: `user_id` is set server-side to the host account (or env override `JIRA_LITE_USER_ID`/`USER`/`USERNAME`/`LOGNAME`). Clients do not send a user header yet.
+- Static frontend is served from `/`; keep API under `/api` to avoid path collisions.
 
 ## Health
-- `GET /health` → `{ "status": "ok" }`
+- `GET /health` → `{ "status": "ok" }` (only endpoint without the `/api` prefix)
 
 ## Projects
-- `GET /projects?status=<not_started|active|on_hold|complete|abandoned>`
-- `POST /projects`
+- `GET /api/projects?status=<not_started|active|on_hold|complete|abandoned>`
+- `POST /api/projects`
 ```json
 { "project_name": "Data Platform", "name_abbreviation": "DPLT", "status": "active", "sponsor": "CFO Office", "description": "..." }
 ```
-- `GET /projects/{project_id}`
-- `PATCH /projects/{project_id}` (partial: status, name_abbreviation, project_name, description, sponsor)
-- `DELETE /projects/{project_id}` (soft delete)
+- `GET /api/projects/{project_id}`
+- `PATCH /api/projects/{project_id}` (partial: status, name_abbreviation, project_name, description, sponsor)
+- `DELETE /api/projects/{project_id}` (soft delete)
 - Responses include `user_id` set by the server account/env.
-- Bulk CSV: `POST /projects/import` (fields: project_name, name_abbreviation, status, description, sponsor; strict-first duplicate detection), `GET /projects/export` (CSV download)
+- Bulk CSV: `POST /api/projects/import` (fields: project_name, name_abbreviation, status, description, sponsor; strict-first duplicate detection), `GET /api/projects/export` (CSV download)
 
 ## Solutions (scoped to project)
-- `GET /projects/{project_id}/solutions?status=<not_started|active|on_hold|complete|abandoned>`
-- `POST /projects/{project_id}/solutions`
+- `GET /api/projects/{project_id}/solutions?status=<not_started|active|on_hold|complete|abandoned>`
+- `POST /api/projects/{project_id}/solutions`
 ```json
 { "solution_name": "Access Controls", "version": "0.2.0", "status": "active", "owner": "Solution Owner", "key_stakeholder": "Finance Ops", "description": "..." }
 ```
-- `GET /solutions/{solution_id}`
-- `PATCH /solutions/{solution_id}` (partial: solution_name, version, status, description, owner, key_stakeholder)
-- `DELETE /solutions/{solution_id}` (soft delete)
+- `GET /api/solutions/{solution_id}`
+- `PATCH /api/solutions/{solution_id}` (partial: solution_name, version, status, description, owner, key_stakeholder)
+- `DELETE /api/solutions/{solution_id}` (soft delete)
 - Responses include `user_id` set by the server account/env.
-- Bulk CSV: `POST /solutions/import` (fields: project_name, solution_name, version, status, description, owner (required), key_stakeholder; creates missing projects; strict-first duplicates), `GET /solutions/export` (CSV download)
+- Bulk CSV: `POST /api/solutions/import` (fields: project_name, solution_name, version, status, description, owner (required), key_stakeholder; creates missing projects; strict-first duplicates), `GET /api/solutions/export` (CSV download)
 
 ## Phases (global) and Solution Phases
-- `GET /phases` → ordered list `{ phase_id, phase_group, phase_name, sequence }`
-- `GET /solutions/{solution_id}/phases` → enabled phases for that solution (ordered by `sequence_override` if set, else `sequence`)
-- `POST /solutions/{solution_id}/phases` (upsert enable/disable + override)
+- `GET /api/phases` → ordered list `{ phase_id, phase_group, phase_name, sequence }`
+- `GET /api/solutions/{solution_id}/phases` → enabled phases for that solution (ordered by `sequence_override` if set, else `sequence`)
+- `POST /api/solutions/{solution_id}/phases` (upsert enable/disable + override)
 ```json
 { "phases": [
   { "phase_id": "backlog", "is_enabled": true },
@@ -51,9 +54,9 @@ Content-Type: `application/json`
 ```
 
 ## Subcomponents (scoped to solution)
-- `GET /solutions/{solution_id}/subcomponents`
+- `GET /api/solutions/{solution_id}/subcomponents`
   - Filters: `status=<to_do|in_progress|on_hold|complete|abandoned>`, `priority=<0-5>`, `sub_phase=<phase_id>`, `due_before=YYYY-MM-DD`, `due_after=YYYY-MM-DD`
-- `POST /solutions/{solution_id}/subcomponents`
+- `POST /api/solutions/{solution_id}/subcomponents`
 ```json
 {
   "subcomponent_name": "Define RBAC roles",
@@ -68,16 +71,16 @@ Content-Type: `application/json`
   "approver": "Risk Lead"
 }
 ```
-- `GET /subcomponents/{subcomponent_id}`
-- `PATCH /subcomponents/{subcomponent_id}` (partial: name, status, priority, due_date, sub_phase, description, notes, category, dependencies, work_estimate, owner, assignee, approver)
-- `DELETE /subcomponents/{subcomponent_id}` (soft delete)
+- `GET /api/subcomponents/{subcomponent_id}`
+- `PATCH /api/subcomponents/{subcomponent_id}` (partial: name, status, priority, due_date, sub_phase, description, notes, category, dependencies, work_estimate, owner, assignee, approver)
+- `DELETE /api/subcomponents/{subcomponent_id}` (soft delete)
 - Rules: `sub_phase` must be among enabled phases for the solution; name unique per solution; `priority` 0–5.
 - Responses include `user_id` set by the server account/env.
-- Bulk CSV: `POST /subcomponents/import` (fields: project_name, solution_name, version (optional, defaults to 0.1.0), subcomponent_name, status, priority, due_date, sub_phase, description, notes, category, dependencies, work_estimate, owner (required), assignee (required), approver; creates missing projects/solutions; strict-first duplicates), `GET /subcomponents/export` (CSV download)
+- Bulk CSV: `POST /api/subcomponents/import` (fields: project_name, solution_name, version (optional, defaults to 0.1.0), subcomponent_name, status, priority, due_date, sub_phase, description, notes, category, dependencies, work_estimate, owner (required), assignee (required), approver; creates missing projects/solutions; strict-first duplicates), `GET /api/subcomponents/export` (CSV download)
 
 ## Checklist (subcomponent phase completion)
-- `GET /subcomponents/{subcomponent_id}/phases` → syncs rows to enabled phases, returns `{ solution_phase_id, phase_id, is_complete, completed_at }`
-- `POST /subcomponents/{subcomponent_id}/phases/bulk`
+- `GET /api/subcomponents/{subcomponent_id}/phases` → syncs rows to enabled phases, returns `{ solution_phase_id, phase_id, is_complete, completed_at }`
+- `POST /api/subcomponents/{subcomponent_id}/phases/bulk`
 ```json
 { "updates": [
   { "solution_phase_id": "uuid-phase-1", "is_complete": true },
