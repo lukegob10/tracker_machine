@@ -5,12 +5,12 @@
 - Bank fit: keeps data local (SQLite by default), pure JSON APIs, soft deletes with timestamps, and no external SaaS dependencies in the baseline.
 
 ## Scope and Boundaries
-- In scope: CRUD for projects/solutions/subcomponents; per-solution phase toggles and derived progress; optional per-phase checklist; CSV import/export; static frontend served by FastAPI.
-- Out of scope today: authentication/authorization, RBAC, SSO, PII tagging, DLP, encryption at rest, audit log streaming, backups/DR, HA/failover, workflow/approvals, notifications.
+- In scope: CRUD for projects/solutions/subcomponents; per-solution phase toggles and solution-level progress via `current_phase`; CSV import/export; cookie-based local auth; static frontend served by FastAPI.
+- Out of scope today: RBAC, SSO/IdP integration, PII tagging, DLP, encryption at rest, audit log streaming to SIEM, backups/DR, HA/failover, workflow/approvals, notifications.
 
 ## Current Readiness (dev)
-- AuthN/AuthZ: none in dev; all endpoints open. Needs enterprise auth (OIDC/SAML/LDAP) and RBAC before production.
-- Data/storage: SQLite file `db/app.db` on host; no at-rest encryption; no backups or retention policy.
+- AuthN/AuthZ: cookie-based local accounts using SOEID (email derived as `<soeid>@citi.com`). No RBAC/project scoping. Needs enterprise auth (OIDC/SAML/LDAP) and RBAC before production.
+- Data/storage: SQLite by default (`db/app.db`), configurable via `JIRA_LITE_DATABASE_URL`; no at-rest encryption; no backups or retention policy.
 - Observability: standard FastAPI logging only; no structured audit/event logs or metrics.
 - Availability: single instance + SQLite; no clustering/replication; no DR plan.
 - Compliance gaps: no secrets management, no change controls, no vulnerability management pipeline.
@@ -18,28 +18,27 @@
 ## Architecture and Runtime
 - Backend: FastAPI + Uvicorn; routes under `/api`; health at `/health`; interactive docs at `/docs` and `/redoc`.
 - Frontend: static HTML/JS served from `/frontend` mounted at `/`.
-- Database: SQLite at `db/app.db`; WAL recommended; tables auto-created on startup; phases seeded; optional sample data via `SAMPLE_SEED=true`.
+- Database: SQLite by default (`db/app.db`, configurable via `JIRA_LITE_DATABASE_URL`); tables auto-created on startup; phases seeded; optional sample data via `SAMPLE_SEED=true`.
 - Packaging: Python dependencies in `backend/requirements.txt`; no container spec committed yet.
 
 ## Data Model (summary; see `docs/data-model.md`)
 - Projects: `project_name`, 4-char `name_abbreviation`, `status`, `description`, `sponsor` (required); soft delete; `user_id` set server-side.
-- Solutions: belong to Project; `solution_name`, `version`, `status`, `description`, `owner` (required), `key_stakeholder` optional; soft delete.
-- Phases: global ordered list; per-solution toggles/overrides via `solution_phases`.
-- Subcomponents: belong to Project + Solution; `subcomponent_name`, `status`, `priority` (0–5), `due_date`, `sub_phase`, `description`, `notes`, `category`, `dependencies`, `work_estimate`, `owner` (required), `assignee` (required), optional `approver`; soft delete; `completed_at` when done.
-- Checklist: `subcomponent_phase_status` mirrors enabled phases per subcomponent for UI check-off.
+- Solutions: belong to Project and are the primary trackable work item; `solution_name`, `version`, `status`, `priority`, optional `due_date`, optional `current_phase`, `owner` (required), optional `assignee/approver/key_stakeholder`, optional `blockers/risks`; soft delete; `completed_at` when done.
+- Phases: global ordered list; per-solution enable/disable via `solution_phases`. Progress is derived from `solutions.current_phase` relative to enabled phases.
+- Subcomponents: optional tasks under a Solution; minimal fields: `subcomponent_name`, `status`, `priority` (0–5), optional `due_date`, `assignee` (required); soft delete; `completed_at` when done.
 
 ## API Surface (see `docs/api-documentation.md`)
 - Projects: `GET/POST/PATCH/DELETE /api/projects`; CSV `POST /api/projects/import`, `GET /api/projects/export`.
-- Solutions: `GET/POST /api/projects/{project_id}/solutions`, `GET/PATCH/DELETE /api/solutions/{solution_id}`; CSV import/export.
+- Solutions: `GET /api/solutions` and `GET/POST /api/projects/{project_id}/solutions`, `GET/PATCH/DELETE /api/solutions/{solution_id}`; CSV import/export.
 - Phases: `GET /api/phases`; per-solution toggles `GET/POST /api/solutions/{solution_id}/phases`.
-- Subcomponents: `GET/POST /api/solutions/{solution_id}/subcomponents`, `GET/PATCH/DELETE /api/subcomponents/{subcomponent_id}`; CSV import/export.
-- Checklist: `GET /api/subcomponents/{id}/phases`; bulk update `POST /api/subcomponents/{id}/phases/bulk`.
+- Subcomponents: `GET /api/subcomponents` and `GET/POST /api/solutions/{solution_id}/subcomponents`, `GET/PATCH/DELETE /api/subcomponents/{subcomponent_id}`; CSV import/export.
 - Errors: JSON `{ "detail": "message" }`. Soft deletes hide rows from list/get.
 
 ## Frontend Flows (see `docs/ui-overview.md`)
-- Projects + Solutions stacked view: enforce sponsor (projects) and owner (solutions), with phase toggles per solution.
-- Subcomponents view: enforce owner/assignee and priority 0–5; select sub_phase from enabled phases; optional checklist.
-- Master list, Kanban, and Calendar views with filters on status/project/solution/sub_phase/priority/dates; CSV actions can live in a secondary menu.
+- Projects view: enforce sponsor (projects) and abbreviation constraints.
+- Solutions view: solution-first tracking (priority/due/current phase) with phase toggles per solution.
+- Subcomponents view: optional tasks under a solution (assignee required).
+- Master list, Swimlanes, and Calendar are solution-first (filters on status/project/current phase/priority/due).
 
 ## Positioning within a Bank Environment
 - Data classification: currently untagged; assume non-PII until reviewed. No masking/DLP.
@@ -70,7 +69,7 @@
 
 ## Deployment Notes
 - Dev: `uvicorn backend.app.main:app --reload` (API at `/api`, UI at `/`).
-- Env vars: `SAMPLE_SEED=true` for demo data; `JIRA_LITE_USER_ID` to override user attribution.
+- Env vars: `SAMPLE_SEED=true` for demo data; `JIRA_LITE_USER_ID` to override user attribution; `JIRA_LITE_DATABASE_URL` to override the default SQLite path.
 - Host: mount persistent volume for DB; lock file permissions; run behind HTTPS with TLS termination.
 
 ## Related Docs

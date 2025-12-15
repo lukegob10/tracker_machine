@@ -5,7 +5,7 @@ import csv
 from io import StringIO
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, status, BackgroundTasks
+from fastapi import APIRouter, Body, Depends, HTTPException, status, BackgroundTasks
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from sqlalchemy import func
@@ -105,12 +105,12 @@ def create_project(
 
 @router.post("/import")
 def import_projects(
-    file: UploadFile = File(...),
+    csv_bytes: bytes = Body(..., media_type="text/csv"),
     session: Session = Depends(get_db),
     tasks: BackgroundTasks = None,
     current_user: User = Depends(current_user_dep),
 ):
-    rows, errors = read_csv(file.file.read())
+    rows, errors = read_csv(csv_bytes)
     if errors:
         return {"created": 0, "updated": 0, "errors": errors, "total_rows": 0}
     created = updated = 0

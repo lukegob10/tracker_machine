@@ -262,30 +262,20 @@ async function loadData() {
   state.loading = true;
   try {
     setStatus("Loading...", "warn");
-    state.phases = await api("/phases");
-    state.projects = await api("/projects");
+    const [phases, projects, solutions, subcomponents] = await Promise.all([
+      api("/phases"),
+      api("/projects"),
+      api("/solutions"),
+      api("/subcomponents"),
+    ]);
 
-    const solutions = [];
-    for (const proj of state.projects) {
-      const sols = await api(`/projects/${proj.project_id}/solutions`);
-      solutions.push(...sols);
-    }
+    state.phases = phases;
+    state.projects = projects;
     state.solutions = solutions;
-
+    state.subcomponents = subcomponents;
     state.solutionPhases = {};
-    for (const sol of state.solutions) {
-      const sp = await api(`/solutions/${sol.solution_id}/phases`);
-      state.solutionPhases[sol.solution_id] = sp;
-    }
 
-    const subs = [];
-    for (const sol of state.solutions) {
-      const list = await api(`/solutions/${sol.solution_id}/subcomponents`);
-      subs.push(...list);
-    }
-    state.subcomponents = subs;
-
-    if (!state.projects.length && !state.solutions.length && !state.subcomponents.length) {
+    if (!state.projects.length && !state.solutions.length) {
       setStatus("No data loaded", "warn");
       alert("No data loaded. Create a project/solution/subcomponent to begin.");
     } else {
@@ -415,9 +405,17 @@ function restoreSelections(projectId, solutionId, subcomponentId) {
       els.solutionForm.querySelector('[name="solution_name"]').value = sol.solution_name || "";
       els.solutionForm.querySelector('[name="version"]').value = sol.version || "";
       els.solutionForm.querySelector('[name="status"]').value = sol.status || "";
+      els.solutionForm.querySelector('[name="priority"]').value = sol.priority ?? "";
+      els.solutionForm.querySelector('[name="due_date"]').value = sol.due_date || "";
       els.solutionForm.querySelector('[name="description"]').value = sol.description || "";
       els.solutionForm.querySelector('[name="owner"]').value = sol.owner || "";
+      els.solutionForm.querySelector('[name="assignee"]').value = sol.assignee || "";
+      els.solutionForm.querySelector('[name="approver"]').value = sol.approver || "";
       els.solutionForm.querySelector('[name="key_stakeholder"]').value = sol.key_stakeholder || "";
+      els.solutionForm.querySelector('[name="blockers"]').value = sol.blockers || "";
+      els.solutionForm.querySelector('[name="risks"]').value = sol.risks || "";
+      updateCurrentPhaseOptions(sol.solution_id);
+      els.solutionForm.querySelector('[name="current_phase"]').value = sol.current_phase || "";
       renderSolutionPhases(sol.solution_id);
     }
   }
@@ -429,17 +427,11 @@ function restoreSelections(projectId, solutionId, subcomponentId) {
       els.subcomponentForm.querySelector('[name="project_id"]').value = sub.project_id;
       updateSubcomponentSolutionOptions(sub.project_id);
       els.subcomponentForm.querySelector('[name="solution_id"]').value = sub.solution_id;
-      updateSubphaseOptions();
       els.subcomponentForm.querySelector('[name="subcomponent_name"]').value = sub.subcomponent_name || "";
       els.subcomponentForm.querySelector('[name="priority"]').value = sub.priority ?? "";
       els.subcomponentForm.querySelector('[name="due_date"]').value = sub.due_date || "";
       els.subcomponentForm.querySelector('[name="status"]').value = sub.status || "";
-      els.subcomponentForm.querySelector('[name="sub_phase"]').value = sub.sub_phase || "";
-      els.subcomponentForm.querySelector('[name="description"]').value = sub.description || "";
-      els.subcomponentForm.querySelector('[name="notes"]').value = sub.notes || "";
-      els.subcomponentForm.querySelector('[name="owner"]').value = sub.owner || "";
       els.subcomponentForm.querySelector('[name="assignee"]').value = sub.assignee || "";
-      els.subcomponentForm.querySelector('[name="approver"]').value = sub.approver || "";
     }
   }
 }
@@ -448,20 +440,19 @@ function renderMasterFilters() {
   const root = els.masterFilters;
   if (!root) return;
   const projectOpts = state.projects.map((p) => `<option value="${p.project_id}">${p.project_name}</option>`).join("");
-  const solutionOpts = state.solutions.map((s) => `<option value="${s.solution_id}">${s.solution_name}</option>`).join("");
   const phaseOpts = state.phases.map((p) => `<option value="${p.phase_id}">${phaseDisplayName(p.phase_id)}</option>`).join("");
-  const ownerOptions = Array.from(new Set(state.subcomponents.map((s) => s.owner).filter(Boolean))).map(
+  const ownerOptions = Array.from(new Set(state.solutions.map((s) => s.owner).filter(Boolean))).map(
     (o) => `<option value="${o}">${o}</option>`
   ).join("");
-  const assigneeOptions = Array.from(new Set(state.subcomponents.map((s) => s.assignee).filter(Boolean))).map(
+  const assigneeOptions = Array.from(new Set(state.solutions.map((s) => s.assignee).filter(Boolean))).map(
     (o) => `<option value="${o}">${o}</option>`
   ).join("");
   root.innerHTML = `
     <label>Status
       <select data-filter="status">
         <option value="">Any</option>
-        <option value="to_do">To do</option>
-        <option value="in_progress">In progress</option>
+        <option value="not_started">Not started</option>
+        <option value="active">Active</option>
         <option value="on_hold">On hold</option>
         <option value="complete">Complete</option>
         <option value="abandoned">Abandoned</option>
@@ -470,11 +461,8 @@ function renderMasterFilters() {
     <label>Project
       <select data-filter="project_id"><option value="">Any</option>${projectOpts}</select>
     </label>
-    <label>Solution
-      <select data-filter="solution_id"><option value="">Any</option>${solutionOpts}</select>
-    </label>
-    <label>Subphase
-      <select data-filter="sub_phase"><option value="">Any</option>${phaseOpts}</select>
+    <label>Current Phase
+      <select data-filter="current_phase"><option value="">Any</option>${phaseOpts}</select>
     </label>
     <label>Priority ≤ <input type="number" data-filter="priority" min="0" max="5" /></label>
     <label>Owner
@@ -483,7 +471,7 @@ function renderMasterFilters() {
     <label>Assignee
       <select data-filter="assignee"><option value="">Any</option>${assigneeOptions}</select>
     </label>
-    <label>Search <input type="text" data-filter="search" placeholder="Name or description" /></label>
+    <label>Search <input type="text" data-filter="search" placeholder="Solution or notes" /></label>
   `;
   root.querySelectorAll("[data-filter]").forEach((el) => {
     const key = el.dataset.filter;
@@ -497,18 +485,17 @@ function renderMasterFilters() {
   });
 }
 
-function filteredSubcomponents() {
+function filteredSolutions() {
   const f = state.filters || {};
-  return state.subcomponents.filter((s) => {
+  return state.solutions.filter((s) => {
     if (f.status && s.status !== f.status) return false;
     if (f.project_id && s.project_id !== f.project_id) return false;
-    if (f.solution_id && s.solution_id !== f.solution_id) return false;
-    if (f.sub_phase && s.sub_phase !== f.sub_phase) return false;
     if (f.priority && Number(s.priority) > Number(f.priority)) return false;
     if (f.owner && s.owner !== f.owner) return false;
     if (f.assignee && s.assignee !== f.assignee) return false;
+    if (f.current_phase && s.current_phase !== f.current_phase) return false;
     if (f.search) {
-      const text = `${s.subcomponent_name || ""} ${s.description || ""}`.toLowerCase();
+      const text = `${s.solution_name || ""} ${s.description || ""} ${s.blockers || ""} ${s.risks || ""}`.toLowerCase();
       if (!text.includes(f.search.toLowerCase())) return false;
     }
     return true;
@@ -524,11 +511,29 @@ function orderedPhases(solutionId) {
   });
 }
 
-function progress(sub) {
-  if (sub.status === "complete") return 100;
-  const phases = orderedPhases(sub.solution_id);
-  if (!phases.length || !sub.sub_phase) return 0;
-  const idx = phases.findIndex((p) => p.phase_id === sub.sub_phase);
+function updateCurrentPhaseOptions(solutionId) {
+  const sel = els.solutionForm?.querySelector('[name="current_phase"]');
+  if (!sel) return;
+
+  const enabledPhaseIds = orderedPhases(solutionId).map((p) => p.phase_id);
+  const phases = enabledPhaseIds.length
+    ? enabledPhaseIds
+        .map((id) => state.phases.find((p) => p.phase_id === id) || { phase_id: id, phase_name: id })
+        .filter(Boolean)
+    : state.phases;
+
+  const opts = phases
+    .map((p) => `<option value="${p.phase_id}">${phaseDisplayName(p.phase_id) || p.phase_id}</option>`)
+    .join("");
+  sel.innerHTML = `<option value="">None</option>${opts}`;
+}
+
+function solutionProgress(solution) {
+  if (!solution) return 0;
+  if (solution.status === "complete") return 100;
+  if (!state.phases.length || !solution.current_phase) return 0;
+  const phases = [...state.phases].sort((a, b) => (a.sequence ?? 0) - (b.sequence ?? 0));
+  const idx = phases.findIndex((p) => p.phase_id === solution.current_phase);
   if (idx === -1) return 0;
   return Math.round(((idx + 1) / phases.length) * 100);
 }
@@ -552,25 +557,23 @@ function phaseDisplayName(phaseId) {
 
 function renderMasterTable() {
   if (!els.masterTable) return;
-  const rows = filteredSubcomponents();
-  const header = ["Project", "Sponsor", "Solution", "Solution Owner", "Subcomponent", "Owner", "Assignee", "Subphase", "Priority", "Due", "Status", "Progress"];
+  const rows = filteredSolutions();
+  const header = ["Project", "Sponsor", "Solution", "Version", "Owner", "Assignee", "Current Phase", "Priority", "Due", "Status", "Progress"];
   let html = "<table><thead><tr>" + header.map((h) => `<th>${h}</th>`).join("") + "</tr></thead><tbody>";
   rows.forEach((r) => {
     const project = state.projects.find((p) => p.project_id === r.project_id);
-    const solution = state.solutions.find((s) => s.solution_id === r.solution_id);
     html += `<tr>
       <td>${project?.project_name || "–"}</td>
       <td>${project?.sponsor || "–"}</td>
-      <td>${solution?.solution_name || "–"}</td>
-      <td>${solution?.owner || "–"}</td>
-      <td>${r.subcomponent_name || "Untitled"}</td>
+      <td>${r.solution_name || "–"}</td>
+      <td>${r.version || "–"}</td>
       <td>${r.owner || "–"}</td>
       <td>${r.assignee || "–"}</td>
-      <td>${phaseDisplayName(r.sub_phase) || "–"}</td>
+      <td>${phaseDisplayName(r.current_phase) || "–"}</td>
       <td>${r.priority ?? ""}</td>
       <td>${r.due_date || ""}</td>
       <td>${formatStatus(r.status)}</td>
-      <td>${progress(r)}%</td>
+      <td>${solutionProgress(r)}%</td>
     </tr>`;
   });
   html += "</tbody></table>";
@@ -579,19 +582,21 @@ function renderMasterTable() {
 
 function renderDashboard() {
   if (!els.dashboardCards) return;
-  const subs = filteredSubcomponents();
-  const overdue = subs.filter((s) => s.due_date && new Date(s.due_date) < new Date());
-  const inProgress = subs.filter((s) => s.status === "in_progress").length;
-  const complete = subs.filter((s) => s.status === "complete").length;
-  const onHold = subs.filter((s) => s.status === "on_hold").length;
-  const noDue = subs.filter((s) => !s.due_date).length;
-  const avgPriority = subs.length ? (subs.reduce((acc, s) => acc + (s.priority ?? 0), 0) / subs.length).toFixed(1) : "–";
+  const solutions = filteredSolutions();
+  const overdue = solutions.filter((s) => s.due_date && new Date(s.due_date) < new Date() && s.status !== "complete");
+  const active = solutions.filter((s) => s.status === "active").length;
+  const complete = solutions.filter((s) => s.status === "complete").length;
+  const onHold = solutions.filter((s) => s.status === "on_hold").length;
+  const noDue = solutions.filter((s) => !s.due_date).length;
+  const avgPriority = solutions.length
+    ? (solutions.reduce((acc, s) => acc + (s.priority ?? 0), 0) / solutions.length).toFixed(1)
+    : "–";
   const cards = [
     { title: "Projects", value: state.projects.length },
     { title: "Solutions", value: state.solutions.length },
-    { title: "Subcomponents", value: subs.length },
+    { title: "Subcomponents", value: state.subcomponents.length },
     { title: "Overdue", value: overdue.length, meta: "Due date past" },
-    { title: "In Progress", value: inProgress },
+    { title: "Active", value: active },
     { title: "Complete", value: complete },
     { title: "On Hold", value: onHold },
     { title: "No Due Date", value: noDue },
@@ -617,10 +622,10 @@ function renderDashboard() {
       const rows = state.solutions
         .map((s) => {
           const proj = state.projects.find((p) => p.project_id === s.project_id)?.project_name || "";
-          return `<tr><td>${s.solution_name}</td><td>${proj}</td><td>${s.version}</td><td>${s.owner || ""}</td><td>${formatStatus(s.status)}</td></tr>`;
+          return `<tr><td>${s.solution_name}</td><td>${proj}</td><td>${s.version}</td><td>${s.owner || ""}</td><td>${s.assignee || ""}</td><td>${phaseDisplayName(s.current_phase) || "–"}</td><td>${s.due_date || ""}</td><td>${formatStatus(s.status)}</td></tr>`;
         })
         .join("");
-      els.solutionsSummary.innerHTML = `<h3>Solutions</h3><div class="table"><table><thead><tr><th>Solution</th><th>Project</th><th>Version</th><th>Owner</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+      els.solutionsSummary.innerHTML = `<h3>Solutions</h3><div class="table"><table><thead><tr><th>Solution</th><th>Project</th><th>Version</th><th>Owner</th><th>Assignee</th><th>Phase</th><th>Due</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table></div>`;
     }
   }
   if (els.attentionPanel) {
@@ -631,15 +636,14 @@ function renderDashboard() {
         .slice(0, 6)
         .map((s) => {
           const proj = state.projects.find((p) => p.project_id === s.project_id)?.project_name || "";
-          const sol = state.solutions.find((p) => p.solution_id === s.solution_id)?.solution_name || "";
-          return `<tr><td>${s.subcomponent_name}</td><td>${proj}</td><td>${sol}</td><td>${s.due_date}</td></tr>`;
+          return `<tr><td>${s.solution_name}</td><td>${proj}</td><td>${s.owner || "—"}</td><td>${s.due_date}</td></tr>`;
         })
         .join("");
-      els.attentionPanel.innerHTML = `<h3>Needs Attention</h3><div class="table"><table><thead><tr><th>Component</th><th>Project</th><th>Solution</th><th>Due</th></tr></thead><tbody>${items}</tbody></table></div>`;
+      els.attentionPanel.innerHTML = `<h3>Needs Attention</h3><div class="table"><table><thead><tr><th>Solution</th><th>Project</th><th>Owner</th><th>Due</th></tr></thead><tbody>${items}</tbody></table></div>`;
     }
   }
   if (els.upcomingPanel) {
-    const upcoming = subs
+    const upcoming = solutions
       .filter((s) => s.due_date)
       .sort((a, b) => new Date(a.due_date) - new Date(b.due_date))
       .slice(0, 6);
@@ -649,12 +653,11 @@ function renderDashboard() {
       const html = upcoming
         .map((s) => {
           const proj = state.projects.find((p) => p.project_id === s.project_id)?.project_name || "";
-          const sol = state.solutions.find((p) => p.solution_id === s.solution_id)?.solution_name || "";
-          const phaseName = state.phases.find((p) => p.phase_id === s.sub_phase)?.phase_name || s.sub_phase || "No phase";
-          return `<tr><td>${s.subcomponent_name}</td><td>${proj}</td><td>${sol}</td><td>${s.due_date}</td><td>${phaseName}</td></tr>`;
+          const phaseName = phaseDisplayName(s.current_phase) || "No phase";
+          return `<tr><td>${s.solution_name}</td><td>${proj}</td><td>${s.due_date}</td><td>${phaseName}</td></tr>`;
         })
         .join("");
-      els.upcomingPanel.innerHTML = `<h3>Upcoming</h3><div class="table"><table><thead><tr><th>Component</th><th>Project</th><th>Solution</th><th>Due</th><th>Phase</th></tr></thead><tbody>${html}</tbody></table></div>`;
+      els.upcomingPanel.innerHTML = `<h3>Upcoming</h3><div class="table"><table><thead><tr><th>Solution</th><th>Project</th><th>Due</th><th>Phase</th></tr></thead><tbody>${html}</tbody></table></div>`;
     }
   }
 }
@@ -742,7 +745,6 @@ function bindSolutionForm() {
   const saveHandler = async () => {
     const data = new FormData(els.solutionForm);
     const id = data.get("solution_id");
-    const projectId = data.get("project_id");
     if (!id) {
       alert("Select a solution or use New to create one.");
       return;
@@ -751,9 +753,16 @@ function bindSolutionForm() {
       solution_name: data.get("solution_name"),
       version: data.get("version"),
       status: data.get("status"),
+      priority: Number(data.get("priority") || 3),
+      due_date: data.get("due_date") || null,
+      current_phase: data.get("current_phase") || null,
       description: data.get("description"),
       owner: data.get("owner"),
+      assignee: data.get("assignee") || "",
+      approver: data.get("approver") || null,
       key_stakeholder: data.get("key_stakeholder"),
+      blockers: data.get("blockers") || null,
+      risks: data.get("risks") || null,
     };
     try {
       await api(`/solutions/${id}`, { method: "PATCH", body: JSON.stringify(payload) });
@@ -769,6 +778,7 @@ function bindSolutionForm() {
   });
   els.solutionForm.addEventListener("reset", () => {
     els.solutionForm.querySelector('[name="solution_id"]').value = "";
+    updateCurrentPhaseOptions("");
     renderSolutionPhases();
   });
   if (els.newSolutionBtn) {
@@ -779,13 +789,20 @@ function bindSolutionForm() {
         solution_name: data.get("solution_name"),
         version: data.get("version"),
         status: data.get("status"),
+        priority: Number(data.get("priority") || 3),
+        due_date: data.get("due_date") || null,
+        current_phase: data.get("current_phase") || null,
         description: data.get("description"),
         owner: data.get("owner"),
-        key_stakeholder: data.get("key_stakeholder"),
-      };
-      if (!projectId) {
-        alert("Select a project to create a solution.");
-        return;
+        assignee: data.get("assignee") || "",
+	        approver: data.get("approver") || null,
+	        key_stakeholder: data.get("key_stakeholder"),
+	        blockers: data.get("blockers") || null,
+	        risks: data.get("risks") || null,
+	      };
+	      if (!projectId) {
+	        alert("Select a project to create a solution.");
+	        return;
       }
       api(`/projects/${projectId}/solutions`, { method: "POST", body: JSON.stringify(payload) })
         .then(() => {
@@ -801,10 +818,11 @@ function bindSolutionForm() {
 
 function renderSolutions() {
   if (!els.solutionList) return;
-  let html = "<table><thead><tr><th>Solution</th><th>Project</th><th>Version</th><th>Owner</th><th>Key Stakeholder</th><th>Status</th></tr></thead><tbody>";
+  let html =
+    "<table><thead><tr><th>Solution</th><th>Project</th><th>Version</th><th>Owner</th><th>Assignee</th><th>Phase</th><th>Due</th><th>Status</th></tr></thead><tbody>";
   state.solutions.forEach((s) => {
     const proj = state.projects.find((p) => p.project_id === s.project_id);
-    html += `<tr data-id="${s.solution_id}"><td>${s.solution_name}</td><td>${proj?.project_name || ""}</td><td>${s.version}</td><td>${s.owner || ""}</td><td>${s.key_stakeholder || ""}</td><td>${formatStatus(s.status)}</td></tr>`;
+    html += `<tr data-id="${s.solution_id}"><td>${s.solution_name}</td><td>${proj?.project_name || ""}</td><td>${s.version}</td><td>${s.owner || ""}</td><td>${s.assignee || ""}</td><td>${phaseDisplayName(s.current_phase) || "–"}</td><td>${s.due_date || ""}</td><td>${formatStatus(s.status)}</td></tr>`;
   });
   html += "</tbody></table>";
   els.solutionList.innerHTML = html;
@@ -817,22 +835,42 @@ function renderSolutions() {
       els.solutionForm.querySelector('[name="solution_name"]').value = sol.solution_name;
       els.solutionForm.querySelector('[name="version"]').value = sol.version;
       els.solutionForm.querySelector('[name="status"]').value = sol.status;
+      els.solutionForm.querySelector('[name="priority"]').value = sol.priority ?? "";
+      els.solutionForm.querySelector('[name="due_date"]').value = sol.due_date || "";
       els.solutionForm.querySelector('[name="description"]').value = sol.description || "";
       els.solutionForm.querySelector('[name="owner"]').value = sol.owner || "";
+      els.solutionForm.querySelector('[name="assignee"]').value = sol.assignee || "";
+      els.solutionForm.querySelector('[name="approver"]').value = sol.approver || "";
       els.solutionForm.querySelector('[name="key_stakeholder"]').value = sol.key_stakeholder || "";
+      els.solutionForm.querySelector('[name="blockers"]').value = sol.blockers || "";
+      els.solutionForm.querySelector('[name="risks"]').value = sol.risks || "";
+      updateCurrentPhaseOptions(sol.solution_id);
+      els.solutionForm.querySelector('[name="current_phase"]').value = sol.current_phase || "";
       renderSolutionPhases(sol.solution_id);
     });
   });
   renderSolutionPhases(); // reset
 }
 
-function renderSolutionPhases(selectedId) {
+async function renderSolutionPhases(selectedId) {
   if (!els.phasesTable) return;
   const solutionId = selectedId || els.solutionForm?.querySelector('[name="solution_id"]')?.value || "";
   if (!solutionId) {
     els.phasesTable.innerHTML = "<p class='muted'>Select a solution to edit phases.</p>";
     return;
   }
+
+  if (!state.solutionPhases[solutionId]) {
+    els.phasesTable.innerHTML = "<p class='muted'>Loading phases…</p>";
+    try {
+      state.solutionPhases[solutionId] = await api(`/solutions/${solutionId}/phases`);
+    } catch (err) {
+      alert(`Load failed: ${err.message}`);
+      return;
+    }
+  }
+  updateCurrentPhaseOptions(solutionId);
+
   const enabled = new Set((state.solutionPhases[solutionId] || []).filter((p) => p.is_enabled).map((p) => p.phase_id));
   const grouped = {};
   state.phases.forEach((p) => {
@@ -866,9 +904,23 @@ function renderSolutionPhases(selectedId) {
       }));
       try {
         await api(`/solutions/${solutionId}/phases`, { method: "POST", body: JSON.stringify({ phases }) });
-        const updated = await api(`/solutions/${solutionId}/phases`);
+        const [updated, updatedSolution] = await Promise.all([
+          api(`/solutions/${solutionId}/phases`),
+          api(`/solutions/${solutionId}`),
+        ]);
         state.solutionPhases[solutionId] = updated;
+        const idx = state.solutions.findIndex((s) => s.solution_id === solutionId);
+        if (idx !== -1) state.solutions[idx] = updatedSolution;
+
+        updateCurrentPhaseOptions(solutionId);
+        if (els.solutionForm?.querySelector('[name="solution_id"]')?.value === solutionId) {
+          els.solutionForm.querySelector('[name="current_phase"]').value = updatedSolution.current_phase || "";
+        }
         renderSolutionPhases(solutionId);
+        renderMasterTable();
+        renderDashboard();
+        renderKanban();
+        renderCalendar();
       } catch (err) {
         alert(`Save failed: ${err.message}`);
       }
@@ -882,7 +934,6 @@ function bindSubcomponentForm() {
     e.preventDefault();
     const data = new FormData(els.subcomponentForm);
     const id = data.get("subcomponent_id");
-    const solutionId = data.get("solution_id");
     if (!id) {
       alert("Select a subcomponent or use New to create one.");
       return;
@@ -892,12 +943,7 @@ function bindSubcomponentForm() {
       status: data.get("status"),
       priority: Number(data.get("priority") || 3),
       due_date: data.get("due_date") || null,
-      sub_phase: data.get("sub_phase") || null,
-      description: data.get("description") || null,
-      notes: data.get("notes") || null,
-      owner: data.get("owner"),
       assignee: data.get("assignee"),
-      approver: data.get("approver") || null,
     };
     try {
       await api(`/subcomponents/${id}`, { method: "PATCH", body: JSON.stringify(payload) });
@@ -908,10 +954,6 @@ function bindSubcomponentForm() {
   });
   els.subcomponentForm.addEventListener("reset", () => {
     els.subcomponentForm.querySelector('[name="subcomponent_id"]').value = "";
-  });
-  els.subcomponentForm.querySelector('[name="solution_id"]')?.addEventListener("change", () => {
-    updateSubphaseOptions();
-    updateSubcomponentOwnerFromSolution();
   });
   const projectSelect = els.subcomponentForm.querySelector('[name="project_id"]');
   projectSelect?.addEventListener("change", () => {
@@ -925,10 +967,9 @@ function bindSubcomponentForm() {
       const solutionId = data.get("solution_id");
       const projectId = data.get("project_id");
       const name = data.get("subcomponent_name");
-      const owner = data.get("owner");
       const assignee = data.get("assignee");
-      if (!projectId || !solutionId || !name || !owner || !assignee) {
-        alert("Project, solution, name, owner, and assignee are required to create.");
+      if (!projectId || !solutionId || !name || !assignee) {
+        alert("Project, solution, task name, and assignee are required to create.");
         return;
       }
       const payload = {
@@ -936,12 +977,7 @@ function bindSubcomponentForm() {
         status: data.get("status"),
         priority: Number(data.get("priority") || 3),
         due_date: data.get("due_date") || null,
-        sub_phase: data.get("sub_phase") || null,
-        description: data.get("description") || null,
-        notes: data.get("notes") || null,
-        owner,
         assignee,
-        approver: data.get("approver") || null,
       };
     api(`/solutions/${solutionId}/subcomponents`, { method: "POST", body: JSON.stringify(payload) })
       .then(() => {
@@ -957,11 +993,11 @@ function bindSubcomponentForm() {
 function renderSubcomponents() {
   if (!els.subcomponentList) return;
   let html =
-    "<table><thead><tr><th>Component</th><th>Project</th><th>Solution</th><th>Owner</th><th>Assignee</th><th>Status</th><th>Priority</th></tr></thead><tbody>";
+    "<table><thead><tr><th>Task</th><th>Project</th><th>Solution</th><th>Assignee</th><th>Status</th><th>Priority</th><th>Due</th></tr></thead><tbody>";
   state.subcomponents.forEach((s) => {
     const project = state.projects.find((p) => p.project_id === s.project_id);
     const solution = state.solutions.find((p) => p.solution_id === s.solution_id);
-    html += `<tr data-id="${s.subcomponent_id}"><td>${s.subcomponent_name}</td><td>${project?.project_name || ""}</td><td>${solution?.solution_name || ""}</td><td>${s.owner || ""}</td><td>${s.assignee || ""}</td><td>${formatStatus(s.status)}</td><td>${s.priority ?? ""}</td></tr>`;
+    html += `<tr data-id="${s.subcomponent_id}"><td>${s.subcomponent_name}</td><td>${project?.project_name || ""}</td><td>${solution?.solution_name || ""}</td><td>${s.assignee || ""}</td><td>${formatStatus(s.status)}</td><td>${s.priority ?? ""}</td><td>${s.due_date || ""}</td></tr>`;
   });
   html += "</tbody></table>";
   els.subcomponentList.innerHTML = html;
@@ -973,17 +1009,11 @@ function renderSubcomponents() {
       els.subcomponentForm.querySelector('[name="project_id"]').value = sub.project_id;
       updateSubcomponentSolutionOptions(sub.project_id);
       els.subcomponentForm.querySelector('[name="solution_id"]').value = sub.solution_id;
-      updateSubphaseOptions();
       els.subcomponentForm.querySelector('[name="subcomponent_name"]').value = sub.subcomponent_name || "";
       els.subcomponentForm.querySelector('[name="priority"]').value = sub.priority ?? "";
       els.subcomponentForm.querySelector('[name="due_date"]').value = sub.due_date || "";
       els.subcomponentForm.querySelector('[name="status"]').value = sub.status;
-      els.subcomponentForm.querySelector('[name="sub_phase"]').value = sub.sub_phase || "";
-      els.subcomponentForm.querySelector('[name="description"]').value = sub.description || "";
-      els.subcomponentForm.querySelector('[name="notes"]').value = sub.notes || "";
-      els.subcomponentForm.querySelector('[name="owner"]').value = sub.owner || "";
       els.subcomponentForm.querySelector('[name="assignee"]').value = sub.assignee || "";
-      els.subcomponentForm.querySelector('[name="approver"]').value = sub.approver || "";
     });
   });
 }
@@ -1000,12 +1030,11 @@ function populateSelects() {
     updateSubcomponentSolutionOptions(scProjectId);
   }
   if (els.solutionForm) {
-    const solutionOptsAll = state.solutions.map((s) => `<option value="${s.solution_id}">${s.solution_name}</option>`).join("");
     const projSel = els.solutionForm.querySelector('[name="project_id"]');
     if (projSel && projSel.innerHTML.indexOf("Select") === -1) {
       projSel.innerHTML = `<option value="">Select</option>${projectOpts}`;
     }
-    // solutionForm does not need a solution select
+    updateCurrentPhaseOptions(els.solutionForm.querySelector('[name="solution_id"]')?.value || "");
   }
 }
 
@@ -1014,69 +1043,34 @@ function updateSubcomponentSolutionOptions(projectId) {
   if (!solSel) return;
   if (!projectId) {
     solSel.innerHTML = `<option value="">Select project first</option>`;
-    updateSubphaseOptions();
     return;
   }
   const filteredSolutions = state.solutions.filter((s) => s.project_id === projectId);
   const solutionOpts = filteredSolutions.map((s) => `<option value="${s.solution_id}">${s.solution_name}</option>`).join("");
   solSel.innerHTML = `<option value="">Select</option>${solutionOpts}`;
-  updateSubphaseOptions();
-}
-
-function updateSubphaseOptions() {
-  const sel = els.subcomponentForm?.querySelector('[name="sub_phase"]');
-  if (!sel) return;
-  const solutionId = els.subcomponentForm.querySelector('[name="solution_id"]')?.value;
-  const phases = orderedPhases(solutionId).map((p) => {
-    return `<option value="${p.phase_id}">${phaseDisplayName(p.phase_id) || p.phase_id}</option>`;
-  });
-  sel.innerHTML = `<option value="">None</option>${phases.join("")}`;
-}
-
-function updateSubcomponentOwnerFromSolution(force = false) {
-  const form = els.subcomponentForm;
-  if (!form) return;
-  const solId = form.querySelector('[name="solution_id"]')?.value;
-  const ownerInput = form.querySelector('[name="owner"]');
-  if (!ownerInput) return;
-  if (!solId) {
-    if (force) ownerInput.value = "";
-    return;
-  }
-  const sol = state.solutions.find((s) => s.solution_id === solId);
-  if (sol && (force || !ownerInput.value)) {
-    ownerInput.value = sol.owner || "";
-  }
 }
 
 function renderKanban() {
   if (!els.kanbanBoard) return;
-  const list = filteredSubcomponents();
+  const list = filteredSolutions();
   const phaseGroups = Array.from(
     new Set(state.phases.sort((a, b) => a.sequence - b.sequence).map((p) => p.phase_group))
   );
 
-  // group subs by project -> solution
+  // group solutions by project
   const byProject = {};
-  list.forEach((c) => {
-    const pid = c.project_id || "none";
-    const sid = c.solution_id || "none";
-    byProject[pid] = byProject[pid] || {};
-    byProject[pid][sid] = byProject[pid][sid] || [];
-    byProject[pid][sid].push(c);
+  list.forEach((s) => {
+    const pid = s.project_id || "none";
+    byProject[pid] = byProject[pid] || [];
+    byProject[pid].push(s);
   });
 
   let html = "";
-  Object.entries(byProject).forEach(([pid, solutions]) => {
+  Object.entries(byProject).forEach(([pid, items]) => {
     const projName = state.projects.find((p) => p.project_id === pid)?.project_name || "Unassigned Project";
-    html += `<div class="kanban-project"><div class="kanban-project-title">${projName}</div>`;
-    Object.entries(solutions).forEach(([sid, items]) => {
-      const solName = state.solutions.find((s) => s.solution_id === sid)?.solution_name || "Unassigned Solution";
-      html += `<div class="kanban-solution"><div class="kanban-solution-title">${solName} <span class="pill">${items.length}</span></div>`;
-      html += renderSolutionSwimlane(items, phaseGroups);
-      html += `</div>`;
-    });
-    html += "</div>";
+    html += `<div class="kanban-project"><div class="kanban-project-title">${projName} <span class="pill">${items.length}</span></div>`;
+    html += renderSolutionSwimlane(items, phaseGroups);
+    html += `</div>`;
   });
 
   els.kanbanBoard.innerHTML = html || "<p class='muted'>No items</p>";
@@ -1085,29 +1079,28 @@ function renderKanban() {
 function renderSolutionSwimlane(items, phaseGroups) {
   let html = `<div class="kanban-swimlane">`;
   phaseGroups.forEach((g) => {
-    const groupCards = items.filter((c) => {
-      const phase = state.phases.find((p) => p.phase_id === c.sub_phase);
+    const groupCards = items.filter((s) => {
+      const phase = state.phases.find((p) => p.phase_id === s.current_phase);
       return (phase?.phase_group || "Unassigned") === g;
     });
-    html += `<div class="kanban-column"><h4>${g}</h4>${renderKanbanCards(groupCards)}</div>`;
+    html += `<div class="kanban-column"><h4>${g}</h4>${renderSolutionCards(groupCards)}</div>`;
   });
   // handle unassigned if any
-  const unassigned = items.filter((c) => !c.sub_phase || !state.phases.find((p) => p.phase_id === c.sub_phase));
+  const unassigned = items.filter((s) => !s.current_phase || !state.phases.find((p) => p.phase_id === s.current_phase));
   if (unassigned.length) {
-    html += `<div class="kanban-column"><h4>Unassigned</h4>${renderKanbanCards(unassigned)}</div>`;
+    html += `<div class="kanban-column"><h4>Unassigned</h4>${renderSolutionCards(unassigned)}</div>`;
   }
   html += `</div>`;
   return html;
 }
 
-function renderKanbanCards(cards) {
+function renderSolutionCards(cards) {
   if (!cards.length) return "<p class='muted'>Empty</p>";
   return cards
-    .map((c) => {
-      const proj = state.projects.find((p) => p.project_id === c.project_id)?.project_name || "";
-      const sol = state.solutions.find((s) => s.solution_id === c.solution_id)?.solution_name || "";
-      const statusLabel = phaseDisplayName(c.sub_phase) || formatStatus(c.status);
-      return `<div class="kanban-card"><strong>${c.subcomponent_name}</strong><div class="meta">${proj}${sol ? " • " + sol : ""}</div><div class="meta">Owner ${c.owner || "—"} • Assignee ${c.assignee || "—"}</div><div class="meta">P${c.priority ?? ""} • ${statusLabel}</div><div class="meta">Due ${c.due_date || "—"}</div></div>`;
+    .map((s) => {
+      const proj = state.projects.find((p) => p.project_id === s.project_id)?.project_name || "";
+      const phaseLabel = phaseDisplayName(s.current_phase) || "No phase";
+      return `<div class="kanban-card"><strong>${s.solution_name}</strong><div class="meta">${proj}${s.version ? " • " + s.version : ""}</div><div class="meta">Owner ${s.owner || "—"} • Assignee ${s.assignee || "—"}</div><div class="meta">P${s.priority ?? ""} • ${phaseLabel}</div><div class="meta">Due ${s.due_date || "—"} • ${formatStatus(s.status)}</div></div>`;
     })
     .join("");
 }
@@ -1115,7 +1108,7 @@ function renderKanbanCards(cards) {
 function renderCalendar() {
   if (!els.calendarGrid) return;
   const byDay = {};
-  state.subcomponents.forEach((s) => {
+  filteredSolutions().forEach((s) => {
     if (!s.due_date) return;
     byDay[s.due_date] = byDay[s.due_date] || [];
     byDay[s.due_date].push(s);
@@ -1128,7 +1121,7 @@ function renderCalendar() {
   let html = "";
   entries.forEach(([day, items]) => {
     html += `<div class="calendar-day"><strong>${day}</strong>${items
-      .map((i) => `<div>${i.subcomponent_name} (${formatStatus(i.status)}) • Owner ${i.owner || "—"} • Assignee ${i.assignee || "—"}</div>`)
+      .map((i) => `<div>${i.solution_name} (${formatStatus(i.status)}) • Owner ${i.owner || "—"} • Assignee ${i.assignee || "—"}</div>`)
       .join("")}</div>`;
   });
   els.calendarGrid.innerHTML = html;
@@ -1164,12 +1157,12 @@ async function uploadCsv(kind, fileInput, resultEl) {
     setImportResult(resultEl, "Choose a CSV file first", true);
     return;
   }
-  const formData = new FormData();
-  formData.append("file", file);
   try {
+    const csvText = await file.text();
     const res = await fetch(`${API_BASE}/${kind}/import`, {
       method: "POST",
-      body: formData,
+      headers: { "Content-Type": "text/csv" },
+      body: csvText,
       credentials: "include",
     });
     if (res.status === 401) {
