@@ -7,7 +7,7 @@ from .enums import ProjectStatus, SolutionStatus, SubcomponentStatus
 
 
 class UserBase(BaseModel):
-    email: EmailStr
+    soeid: str
     display_name: str
 
 
@@ -16,7 +16,7 @@ class UserCreate(UserBase):
 
 
 class UserLogin(BaseModel):
-    email: EmailStr
+    soeid: str
     password: str
 
 
@@ -24,6 +24,7 @@ class UserRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     user_id: str
+    soeid: str
     email: EmailStr
     display_name: str
     role: str
@@ -31,6 +32,21 @@ class UserRead(BaseModel):
     last_login_at: Optional[datetime] = None
     created_at: datetime
     updated_at: datetime
+
+
+class ChangeLogRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    change_id: str
+    entity_type: str
+    entity_id: str
+    action: str
+    field: Optional[str] = None
+    old_value: Optional[str] = None
+    new_value: Optional[str] = None
+    user_id: str
+    request_id: Optional[str] = None
+    created_at: datetime
 
 
 class ProjectBase(BaseModel):

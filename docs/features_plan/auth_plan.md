@@ -11,8 +11,8 @@ Add authentication so users must log in before accessing the app, with a simple 
 - Roles: start with `admin` vs `user` to permit future RBAC; default new users to `user`.
 
 ## Data Model Changes
-- `users` table (new):
-  - `user_id` (UUID), `email` (unique), `display_name`, `password_hash`, `role` (`admin`|`user`), `is_active`, `failed_attempts`, `locked_until`, `created_at`, `updated_at`, `last_login_at`, optional `external_id` (for future SSO subject).
+- `users` table:
+  - `user_id` (UUID), `soeid` (corp id, unique), `email` (derived: `<soeid>@citi.com`, unique), `display_name`, `password_hash`, `role` (`admin`|`user`), `is_active`, `failed_attempts`, `locked_until`, `created_at`, `updated_at`, `last_login_at`, optional `external_id` (for future SSO subject).
 - Update existing tables to rely on authenticated `user_id` (no payload field from clients; server injects).
 
 ## Backend Endpoints (Phase 1)

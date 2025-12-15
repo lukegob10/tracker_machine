@@ -2,6 +2,7 @@ import csv
 from datetime import datetime, timezone
 from io import StringIO
 from typing import List, Optional
+from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, status, BackgroundTasks
 from fastapi.responses import StreamingResponse
@@ -13,6 +14,7 @@ from .models import Project, Solution, User
 from .schemas import SolutionCreate, SolutionRead, SolutionUpdate
 from .utils import derive_abbreviation, enable_all_phases, normalize_status, normalize_str, read_csv
 from .realtime import schedule_broadcast
+from .audit_log import log_changes
 
 router = APIRouter()
 
@@ -99,6 +101,22 @@ def create_solution(
         user_id=current_user.user_id,
     )
     session.add(solution)
+    session.flush()
+    log_changes(
+        session,
+        entity_type="solution",
+        entity_id=solution.solution_id,
+        user_id=current_user.user_id,
+        action="create",
+        changes={
+            "solution_name": (None, solution.solution_name),
+            "version": (None, solution.version),
+            "status": (None, solution.status),
+            "description": (None, solution.description),
+            "owner": (None, solution.owner),
+            "key_stakeholder": (None, solution.key_stakeholder),
+        },
+    )
     session.commit()
     session.refresh(solution)
     enable_all_phases(session, solution.solution_id)
@@ -119,6 +137,7 @@ def import_solutions(
         return {"created": 0, "updated": 0, "projects_created": 0, "errors": errors, "total_rows": 0}
     created = updated = projects_created = 0
     seen = set()
+    request_id = str(uuid4())
 
     projects_by_name = {
         p.project_name.lower(): p for p in session.query(Project).filter(Project.deleted_at.is_(None)).all()
@@ -170,6 +189,20 @@ def import_solutions(
             projects_by_name[project_name.lower()] = project
             new_abbrevs.add(abbr)
             projects_created += 1
+            log_changes(
+                session,
+                entity_type="project",
+                entity_id=project.project_id,
+                user_id=current_user.user_id,
+                action="create",
+                changes={
+                    "project_name": (None, project.project_name),
+                    "name_abbreviation": (None, project.name_abbreviation),
+                    "status": (None, project.status),
+                    "description": (None, project.description),
+                },
+                request_id=request_id,
+            )
 
         existing = (
             _solution_query(session)
@@ -180,12 +213,32 @@ def import_solutions(
         )
         try:
             if existing:
+                before = {
+                    "status": existing.status,
+                    "description": existing.description,
+                    "owner": existing.owner,
+                    "key_stakeholder": existing.key_stakeholder,
+                }
                 existing.status = status_enum
                 existing.description = description
                 existing.owner = owner
                 existing.key_stakeholder = key_stakeholder or None
                 existing.updated_at = datetime.now(timezone.utc)
                 session.add(existing)
+                log_changes(
+                    session,
+                    entity_type="solution",
+                    entity_id=existing.solution_id,
+                    user_id=current_user.user_id,
+                    action="update",
+                    changes={
+                        "status": (before["status"], existing.status),
+                        "description": (before["description"], existing.description),
+                        "owner": (before["owner"], existing.owner),
+                        "key_stakeholder": (before["key_stakeholder"], existing.key_stakeholder),
+                    },
+                    request_id=request_id,
+                )
                 updated += 1
                 session.commit()
             else:
@@ -200,6 +253,23 @@ def import_solutions(
                     user_id=current_user.user_id,
                 )
                 session.add(solution)
+                session.flush()
+                log_changes(
+                    session,
+                    entity_type="solution",
+                    entity_id=solution.solution_id,
+                    user_id=current_user.user_id,
+                    action="create",
+                    changes={
+                        "solution_name": (None, solution.solution_name),
+                        "version": (None, solution.version),
+                        "status": (None, solution.status),
+                        "description": (None, solution.description),
+                        "owner": (None, solution.owner),
+                        "key_stakeholder": (None, solution.key_stakeholder),
+                    },
+                    request_id=request_id,
+                )
                 session.commit()
                 enable_all_phases(session, solution.solution_id)
                 created += 1
@@ -255,10 +325,12 @@ def update_solution(
     payload: SolutionUpdate,
     session: Session = Depends(get_db),
     tasks: BackgroundTasks = None,
+    current_user: User = Depends(current_user_dep),
 ):
     solution = _get_solution_or_404(session, solution_id)
 
     update_data = payload.model_dump(exclude_unset=True)
+    before = {field: getattr(solution, field) for field in update_data.keys()}
     for field, value in update_data.items():
         setattr(solution, field, value)
     solution.updated_at = datetime.now(timezone.utc)
@@ -279,6 +351,15 @@ def update_solution(
             )
 
     session.add(solution)
+    if update_data:
+        log_changes(
+            session,
+            entity_type="solution",
+            entity_id=solution.solution_id,
+            user_id=current_user.user_id,
+            action="update",
+            changes={field: (before.get(field), getattr(solution, field)) for field in update_data.keys()},
+        )
     session.commit()
     session.refresh(solution)
     schedule_broadcast("solutions")
@@ -286,12 +367,25 @@ def update_solution(
 
 
 @router.delete("/solutions/{solution_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_solution(solution_id: str, session: Session = Depends(get_db), tasks: BackgroundTasks = None):
+def delete_solution(
+    solution_id: str,
+    session: Session = Depends(get_db),
+    tasks: BackgroundTasks = None,
+    current_user: User = Depends(current_user_dep),
+):
     solution = _get_solution_or_404(session, solution_id)
     now = datetime.now(timezone.utc)
     solution.deleted_at = now
     solution.updated_at = now
     session.add(solution)
+    log_changes(
+        session,
+        entity_type="solution",
+        entity_id=solution.solution_id,
+        user_id=current_user.user_id,
+        action="delete",
+        changes={"deleted_at": (None, now)},
+    )
     session.commit()
     schedule_broadcast("solutions")
     return None

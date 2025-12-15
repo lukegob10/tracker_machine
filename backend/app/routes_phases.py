@@ -5,10 +5,11 @@ from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from .deps import get_db
-from .models import Phase, Solution, SolutionPhase
+from .deps import get_db, current_user as current_user_dep
+from .models import Phase, Solution, SolutionPhase, User
 from .schemas import PhaseRead, SolutionPhaseInput, SolutionPhaseRead
 from .realtime import schedule_broadcast
+from .audit_log import log_changes
 
 router = APIRouter()
 
@@ -37,6 +38,7 @@ def set_solution_phases(
     payload: dict,
     session: Session = Depends(get_db),
     tasks: BackgroundTasks = None,
+    current_user: User = Depends(current_user_dep),
 ):
     """
     Upsert enabled phases for a solution. Payload shape:
@@ -68,6 +70,9 @@ def set_solution_phases(
             .filter(SolutionPhase.phase_id == data.phase_id)
             .first()
         )
+        action = "update" if sp else "create"
+        before_enabled = sp.is_enabled if sp else None
+        before_seq = sp.sequence_override if sp else None
         if sp:
             sp.is_enabled = data.is_enabled
             sp.sequence_override = data.sequence_override
@@ -82,6 +87,18 @@ def set_solution_phases(
                 updated_at=now,
             )
             session.add(sp)
+            session.flush()
+        log_changes(
+            session,
+            entity_type="solution_phase",
+            entity_id=sp.solution_phase_id,
+            user_id=current_user.user_id,
+            action=action,
+            changes={
+                "is_enabled": (before_enabled, sp.is_enabled),
+                "sequence_override": (before_seq, sp.sequence_override),
+            },
+        )
         updated_items.append(sp)
         session.commit()
     schedule_broadcast("solutions")
