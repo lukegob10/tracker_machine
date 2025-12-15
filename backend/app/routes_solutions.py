@@ -7,18 +7,11 @@ from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, status,
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
-from .deps import get_db
+from .deps import get_db, current_user as current_user_dep
 from .enums import ProjectStatus, SolutionStatus
-from .models import Project, Solution
+from .models import Project, Solution, User
 from .schemas import SolutionCreate, SolutionRead, SolutionUpdate
-from .utils import (
-    derive_abbreviation,
-    enable_all_phases,
-    get_default_user_id,
-    normalize_status,
-    normalize_str,
-    read_csv,
-)
+from .utils import derive_abbreviation, enable_all_phases, normalize_status, normalize_str, read_csv
 from .realtime import schedule_broadcast
 
 router = APIRouter()
@@ -78,6 +71,7 @@ def create_solution(
     payload: SolutionCreate,
     session: Session = Depends(get_db),
     tasks: BackgroundTasks = None,
+    current_user: User = Depends(current_user_dep),
 ):
     _ensure_project_exists(session, project_id)
 
@@ -102,7 +96,7 @@ def create_solution(
         description=payload.description,
         owner=payload.owner,
         key_stakeholder=payload.key_stakeholder,
-        user_id=get_default_user_id(),
+        user_id=current_user.user_id,
     )
     session.add(solution)
     session.commit()
@@ -114,7 +108,12 @@ def create_solution(
 
 
 @router.post("/solutions/import")
-def import_solutions(file: UploadFile = File(...), session: Session = Depends(get_db), tasks: BackgroundTasks = None):
+def import_solutions(
+    file: UploadFile = File(...),
+    session: Session = Depends(get_db),
+    tasks: BackgroundTasks = None,
+    current_user: User = Depends(current_user_dep),
+):
     rows, errors = read_csv(file.file.read())
     if errors:
         return {"created": 0, "updated": 0, "projects_created": 0, "errors": errors, "total_rows": 0}
@@ -164,7 +163,7 @@ def import_solutions(file: UploadFile = File(...), session: Session = Depends(ge
                 name_abbreviation=abbr,
                 status=ProjectStatus.not_started,
                 description=None,
-                user_id=get_default_user_id(),
+                user_id=current_user.user_id,
             )
             session.add(project)
             session.flush()  # ensure project_id is available
@@ -198,7 +197,7 @@ def import_solutions(file: UploadFile = File(...), session: Session = Depends(ge
                     description=description,
                     owner=owner,
                     key_stakeholder=key_stakeholder or None,
-                    user_id=get_default_user_id(),
+                    user_id=current_user.user_id,
                 )
                 session.add(solution)
                 session.commit()

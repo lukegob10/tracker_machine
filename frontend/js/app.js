@@ -4,7 +4,16 @@ const els = {
   navButtons: document.querySelectorAll(".nav-btn[data-view]"),
   views: document.querySelectorAll(".view"),
   status: document.getElementById("connection-status"),
+  currentUser: document.getElementById("current-user"),
+  logoutBtn: document.getElementById("logout-btn"),
   themeToggle: document.getElementById("theme-toggle"),
+  appShell: document.getElementById("app-shell"),
+  authScreen: document.getElementById("auth-screen"),
+  authTabLogin: document.getElementById("auth-tab-login"),
+  authTabRegister: document.getElementById("auth-tab-register"),
+  loginForm: document.getElementById("login-form"),
+  registerForm: document.getElementById("register-form"),
+  authError: document.getElementById("auth-error"),
   masterFilters: document.getElementById("master-filters"),
   masterTable: document.getElementById("master-table"),
   dashboardCards: document.getElementById("dashboard-cards"),
@@ -39,6 +48,9 @@ const els = {
 };
 
 const state = {
+  user: null,
+  authed: false,
+  authMode: "login",
   phases: [],
   projects: [],
   solutions: [],
@@ -50,6 +62,8 @@ const state = {
   loading: false,
   pendingRefresh: false,
 };
+
+let liveSyncStarted = false;
 
 function setStatus(text, type = "") {
   if (!els.status) return;
@@ -63,20 +77,181 @@ function setImportResult(el, message, isError = false) {
   el.classList.toggle("error", !!isError);
 }
 
-async function api(path, options = {}) {
-  const res = await fetch(`${API_BASE}${path}`, {
-    headers: { "Content-Type": "application/json", ...(options.headers || {}) },
-    ...options,
-  });
-  if (!res.ok) {
-    const detail = await res.text();
-    throw new Error(detail || res.statusText);
+function setAuthVisible(show) {
+  if (els.authScreen) els.authScreen.classList.toggle("hidden", !show);
+  if (els.appShell) els.appShell.classList.toggle("hidden", show);
+}
+
+function setAuthed(user) {
+  state.user = user;
+  state.authed = !!user;
+  if (els.currentUser) {
+    els.currentUser.textContent = user ? user.display_name || user.email : "Not signed in";
+    els.currentUser.classList.toggle("muted", !user);
   }
-  if (res.status === 204) return null;
-  return res.json();
+  if (els.logoutBtn) {
+    els.logoutBtn.disabled = !user;
+  }
+  setAuthVisible(!state.authed);
+  if (!state.authed) {
+    setStatus("Sign in required", "warn");
+  }
+}
+
+function setAuthMode(mode) {
+  state.authMode = mode;
+  els.authTabLogin?.classList.toggle("active", mode === "login");
+  els.authTabRegister?.classList.toggle("active", mode === "register");
+  els.loginForm?.classList.toggle("hidden", mode !== "login");
+  els.registerForm?.classList.toggle("hidden", mode !== "register");
+  if (els.authError) els.authError.textContent = "";
+}
+
+function showAuthError(message) {
+  if (els.authError) {
+    els.authError.textContent = message || "";
+  }
+}
+
+async function api(path, options = {}) {
+  const headers = { ...(options.headers || {}) };
+  const isFormData = options.body instanceof FormData;
+  if (!isFormData && options.body && !headers["Content-Type"]) {
+    headers["Content-Type"] = "application/json";
+  }
+  const res = await fetch(`${API_BASE}${path}`, {
+    credentials: "include",
+    ...options,
+    headers,
+  });
+  const text = await res.text();
+  let data = null;
+  try {
+    data = text ? JSON.parse(text) : null;
+  } catch {
+    data = text || null;
+  }
+  if (!res.ok) {
+    const err = new Error((data && data.detail) || data || res.statusText);
+    err.status = res.status;
+    throw err;
+  }
+  return data;
+}
+
+function handleAuthError(err) {
+  if (err && err.status === 401) {
+    setAuthed(null);
+    setAuthVisible(true);
+    return true;
+  }
+  return false;
+}
+
+async function fetchCurrentUser() {
+  try {
+    const me = await api("/auth/me");
+    setAuthed(me);
+    return me;
+  } catch (err) {
+    if (err.status === 401) {
+      setAuthed(null);
+      return null;
+    }
+    throw err;
+  }
+}
+
+async function performLogin(email, password) {
+  return api("/auth/login", {
+    method: "POST",
+    body: JSON.stringify({ email, password }),
+  });
+}
+
+async function performRegister(display_name, email, password) {
+  return api("/auth/register", {
+    method: "POST",
+    body: JSON.stringify({ display_name, email, password }),
+  });
+}
+
+function bindAuthUI() {
+  setAuthMode("login");
+  els.authTabLogin?.addEventListener("click", () => setAuthMode("login"));
+  els.authTabRegister?.addEventListener("click", () => setAuthMode("register"));
+
+  els.loginForm?.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    showAuthError("");
+    const form = new FormData(els.loginForm);
+    try {
+      const user = await performLogin(form.get("email"), form.get("password"));
+      setAuthed(user);
+      setAuthVisible(false);
+      startLiveSyncOnce();
+      await loadData();
+    } catch (err) {
+      if (!handleAuthError(err)) {
+        showAuthError(err.message || "Login failed");
+      }
+    }
+  });
+
+  els.registerForm?.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    showAuthError("");
+    const form = new FormData(els.registerForm);
+    try {
+      const user = await performRegister(form.get("display_name"), form.get("email"), form.get("password"));
+      setAuthed(user);
+      setAuthVisible(false);
+      startLiveSyncOnce();
+      await loadData();
+    } catch (err) {
+      if (!handleAuthError(err)) {
+        showAuthError(err.message || "Registration failed");
+      }
+    }
+  });
+
+  els.logoutBtn?.addEventListener("click", async () => {
+    try {
+      await api("/auth/logout", { method: "POST" });
+    } catch (err) {
+      console.warn("Logout error", err);
+    } finally {
+      setAuthed(null);
+      setAuthVisible(true);
+    }
+  });
+}
+
+function startLiveSyncOnce() {
+  if (liveSyncStarted) return;
+  initLiveSync();
+  liveSyncStarted = true;
+}
+
+async function bootstrapAuth() {
+  setStatus("Checking session...", "warn");
+  setAuthVisible(true);
+  const user = await fetchCurrentUser();
+  if (user) {
+    setAuthVisible(false);
+    startLiveSyncOnce();
+    await loadData();
+  } else {
+    setStatus("Sign in required", "warn");
+  }
 }
 
 async function loadData() {
+  if (!state.authed) {
+    setStatus("Sign in required", "warn");
+    setAuthVisible(true);
+    return;
+  }
   const selectedProjectId = els.projectForm?.querySelector('[name="project_id"]')?.value || "";
   const selectedSolutionId = els.solutionForm?.querySelector('[name="solution_id"]')?.value || "";
   const selectedSubcomponentId = els.subcomponentForm?.querySelector('[name="subcomponent_id"]')?.value || "";
@@ -120,7 +295,11 @@ async function loadData() {
     restoreSelections(selectedProjectId, selectedSolutionId, selectedSubcomponentId);
   } catch (err) {
     console.error(err);
-    setStatus("Error", "danger");
+    if (handleAuthError(err)) {
+      setStatus("Sign in required", "warn");
+    } else {
+      setStatus("Error", "danger");
+    }
   } finally {
     state.loading = false;
     if (state.pendingRefresh) {
@@ -917,7 +1096,12 @@ function renderCalendar() {
 
 async function downloadCsv(kind, filename, resultEl) {
   try {
-    const res = await fetch(`${API_BASE}/${kind}/export`);
+    const res = await fetch(`${API_BASE}/${kind}/export`, { credentials: "include" });
+    if (res.status === 401) {
+      handleAuthError({ status: 401 });
+      setImportResult(resultEl, "Sign in required", true);
+      return;
+    }
     if (!res.ok) throw new Error(await res.text());
     const blob = await res.blob();
     const url = URL.createObjectURL(blob);
@@ -946,7 +1130,13 @@ async function uploadCsv(kind, fileInput, resultEl) {
     const res = await fetch(`${API_BASE}/${kind}/import`, {
       method: "POST",
       body: formData,
+      credentials: "include",
     });
+    if (res.status === 401) {
+      handleAuthError({ status: 401 });
+      setImportResult(resultEl, "Sign in required", true);
+      return;
+    }
     if (!res.ok) throw new Error(await res.text());
     const data = await res.json();
     const errs = data.errors || [];
@@ -1020,14 +1210,14 @@ function bindNav() {
 
 function init() {
   initTheme();
-  initLiveSync();
+  bindAuthUI();
   bindCsvControls();
   bindNav();
   bindProjectForm();
   bindSolutionForm();
   bindSubcomponentForm();
   setView(state.currentView);
-  loadData();
+  bootstrapAuth();
 }
 
 init();

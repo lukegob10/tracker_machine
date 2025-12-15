@@ -5,6 +5,7 @@
 - Serve static frontend from `/` via FastAPI `StaticFiles` (directory `frontend/`).
 - All forms and lists use live API data; no offline cache or mutations queue.
 - Error handling: surface API errors in a visible status pill or toast.
+- Pre-app auth screen with login/register toggle; uses cookie-based auth (access + refresh) and hides the app shell until signed in.
 
 ## Endpoints
 - Projects: `GET/POST/PATCH/DELETE /api/projects`, plus `POST /api/projects/import` and `GET /api/projects/export` (CSV).

@@ -9,10 +9,19 @@ See `docs/data-model.md` for field definitions/constraints.
 
 ## Common
 - Errors: `{ "detail": "message" }`
+- Auth: cookie-based. Use `/api/auth/login` or `/api/auth/register` to obtain HttpOnly `access_token` + `refresh_token`. All routes below require auth except `/health` and the `/api/auth/*` endpoints.
 - Soft deletes: `DELETE` sets `deleted_at`; list/get skip soft-deleted rows.
 - Timestamps: ISO8601 UTC. Phases are seeded on startup.
-- User attribution: `user_id` is set server-side to the host account (or env override `JIRA_LITE_USER_ID`/`USER`/`USERNAME`/`LOGNAME`). Clients do not send a user header yet.
+- User attribution: `user_id` is set from the authenticated user; legacy env fallback (`JIRA_LITE_USER_ID`/`USER`/`USERNAME`/`LOGNAME`) applies only where explicitly noted for dev data.
 - Static frontend is served from `/`; keep API under `/api` to avoid path collisions.
+
+## Auth
+- `POST /api/auth/register` → create a local user (`email`, `display_name`, `password`); sets auth cookies and returns the user.
+- `POST /api/auth/login` → verify credentials; sets `access_token` (short TTL) + `refresh_token` (longer TTL) cookies; returns the user.
+- `POST /api/auth/refresh` → rotate access/refresh using the refresh cookie; returns the user.
+- `POST /api/auth/logout` → clears cookies.
+- `GET /api/auth/me` → returns the current authenticated user.
+- Lockout: after repeated failed logins, account is temporarily locked; `is_active` must be true.
 
 ## Health
 - `GET /health` → `{ "status": "ok" }` (only endpoint without the `/api` prefix)
