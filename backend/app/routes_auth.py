@@ -22,18 +22,22 @@ MAX_FAILED_ATTEMPTS = 5
 LOCKOUT_MINUTES = 15
 
 
-def _get_user_by_email(session: Session, email: str) -> Optional[User]:
-    return session.query(User).filter(User.email == email.lower()).first()
+def _get_user_by_soeid(session: Session, soeid: str) -> Optional[User]:
+    return session.query(User).filter(User.soeid == soeid.lower()).first()
 
 
 @router.post("/register", response_model=UserRead, status_code=status.HTTP_201_CREATED)
 def register(payload: UserCreate, response: Response, session: Session = Depends(get_db)):
-    existing = _get_user_by_email(session, str(payload.email))
+    soeid_norm = str(payload.soeid).strip().lower()
+    if not soeid_norm:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="SOEID is required")
+    existing = _get_user_by_soeid(session, soeid_norm)
     if existing:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email already registered")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="SOEID already registered")
 
     user = User(
-        email=str(payload.email).lower(),
+        soeid=soeid_norm,
+        email=f"{soeid_norm}@citi.com",
         display_name=payload.display_name,
         password_hash=hash_password(payload.password),
         role="user",
@@ -51,7 +55,8 @@ def register(payload: UserCreate, response: Response, session: Session = Depends
 
 @router.post("/login", response_model=UserRead)
 def login(payload: UserLogin, response: Response, session: Session = Depends(get_db)):
-    user = _get_user_by_email(session, str(payload.email))
+    soeid_norm = str(payload.soeid).strip().lower()
+    user = _get_user_by_soeid(session, soeid_norm)
     now = datetime.now(timezone.utc)
     if not user:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")

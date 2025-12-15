@@ -16,12 +16,15 @@ See `docs/data-model.md` for field definitions/constraints.
 - Static frontend is served from `/`; keep API under `/api` to avoid path collisions.
 
 ## Auth
-- `POST /api/auth/register` → create a local user (`email`, `display_name`, `password`); sets auth cookies and returns the user.
-- `POST /api/auth/login` → verify credentials; sets `access_token` (short TTL) + `refresh_token` (longer TTL) cookies; returns the user.
+- `POST /api/auth/register` → create a local user (`soeid`, `display_name`, `password`); email is derived as `<soeid>@citi.com`; sets auth cookies and returns the user.
+- `POST /api/auth/login` → verify credentials with `soeid` + password; sets `access_token` (short TTL) + `refresh_token` (longer TTL) cookies; returns the user.
 - `POST /api/auth/refresh` → rotate access/refresh using the refresh cookie; returns the user.
 - `POST /api/auth/logout` → clears cookies.
 - `GET /api/auth/me` → returns the current authenticated user.
 - Lockout: after repeated failed logins, account is temporarily locked; `is_active` must be true.
+
+## Audit Log
+- `GET /api/audit` (auth required) → append-only change log; filters: `entity_type`, `entity_id`, `field`, `user_id`, `since`, `until`, `limit` (default 100). Records captures: who/when/action and old→new for tracked fields.
 
 ## Health
 - `GET /health` → `{ "status": "ok" }` (only endpoint without the `/api` prefix)

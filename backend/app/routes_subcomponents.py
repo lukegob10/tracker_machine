@@ -2,6 +2,7 @@ import csv
 from datetime import datetime, timezone, date
 from io import StringIO
 from typing import List, Optional
+from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, status, BackgroundTasks
 from fastapi.responses import StreamingResponse
@@ -25,6 +26,7 @@ from .utils import (
     read_csv,
 )
 from .realtime import schedule_broadcast
+from .audit_log import log_changes
 
 router = APIRouter()
 
@@ -163,6 +165,24 @@ def create_subcomponent(
         user_id=current_user.user_id,
     )
     session.add(subcomponent)
+    session.flush()
+    log_changes(
+        session,
+        entity_type="subcomponent",
+        entity_id=subcomponent.subcomponent_id,
+        user_id=current_user.user_id,
+        action="create",
+        changes={
+            "subcomponent_name": (None, subcomponent.subcomponent_name),
+            "status": (None, subcomponent.status),
+            "priority": (None, subcomponent.priority),
+            "due_date": (None, subcomponent.due_date),
+            "sub_phase": (None, subcomponent.sub_phase),
+            "owner": (None, subcomponent.owner),
+            "assignee": (None, subcomponent.assignee),
+            "approver": (None, subcomponent.approver),
+        },
+    )
     session.commit()
     session.refresh(subcomponent)
     schedule_broadcast("subcomponents")
@@ -188,6 +208,7 @@ def import_subcomponents(
         }
     created = updated = projects_created = solutions_created = 0
     seen = set()
+    request_id = str(uuid4())
 
     projects_by_name = {
         p.project_name.lower(): p for p in session.query(Project).filter(Project.deleted_at.is_(None)).all()
@@ -264,6 +285,21 @@ def import_subcomponents(
             projects_by_name[project_name.lower()] = project
             new_abbrevs.add(abbr)
             projects_created += 1
+            log_changes(
+                session,
+                entity_type="project",
+                entity_id=project.project_id,
+                user_id=current_user.user_id,
+                action="create",
+                changes={
+                    "project_name": (None, project.project_name),
+                    "name_abbreviation": (None, project.name_abbreviation),
+                    "status": (None, project.status),
+                    "description": (None, project.description),
+                    "sponsor": (None, project.sponsor),
+                },
+                request_id=request_id,
+            )
 
         solution_key = (project.project_id, solution_name.lower(), version_raw.lower())
         solution = solutions_by_key.get(solution_key)
@@ -280,6 +316,23 @@ def import_subcomponents(
                     user_id=current_user.user_id,
                 )
                 session.add(solution)
+                session.flush()
+                log_changes(
+                    session,
+                    entity_type="solution",
+                    entity_id=solution.solution_id,
+                    user_id=current_user.user_id,
+                    action="create",
+                    changes={
+                        "solution_name": (None, solution.solution_name),
+                        "version": (None, solution.version),
+                        "status": (None, solution.status),
+                        "description": (None, solution.description),
+                        "owner": (None, solution.owner),
+                        "key_stakeholder": (None, solution.key_stakeholder),
+                    },
+                    request_id=request_id,
+                )
                 session.commit()
                 enable_all_phases(session, solution.solution_id)
                 solutions_by_key[solution_key] = solution
@@ -303,6 +356,21 @@ def import_subcomponents(
                 .first()
             )
             if existing:
+                before = {
+                    "status": existing.status,
+                    "priority": existing.priority,
+                    "due_date": existing.due_date,
+                    "sub_phase": existing.sub_phase,
+                    "description": existing.description,
+                    "notes": existing.notes,
+                    "category": existing.category,
+                    "dependencies": existing.dependencies,
+                    "work_estimate": existing.work_estimate,
+                    "owner": existing.owner,
+                    "assignee": existing.assignee,
+                    "approver": existing.approver,
+                    "completed_at": existing.completed_at,
+                }
                 existing.status = status_enum
                 existing.priority = priority_val
                 existing.due_date = due_val
@@ -319,6 +387,29 @@ def import_subcomponents(
                 if status_enum == SubcomponentStatus.complete and not existing.completed_at:
                     existing.completed_at = datetime.now(timezone.utc)
                 session.add(existing)
+                log_changes(
+                    session,
+                    entity_type="subcomponent",
+                    entity_id=existing.subcomponent_id,
+                    user_id=current_user.user_id,
+                    action="update",
+                    changes={
+                        "status": (before["status"], existing.status),
+                        "priority": (before["priority"], existing.priority),
+                        "due_date": (before["due_date"], existing.due_date),
+                        "sub_phase": (before["sub_phase"], existing.sub_phase),
+                        "description": (before["description"], existing.description),
+                        "notes": (before["notes"], existing.notes),
+                        "category": (before["category"], existing.category),
+                        "dependencies": (before["dependencies"], existing.dependencies),
+                        "work_estimate": (before["work_estimate"], existing.work_estimate),
+                        "owner": (before["owner"], existing.owner),
+                        "assignee": (before["assignee"], existing.assignee),
+                        "approver": (before["approver"], existing.approver),
+                        "completed_at": (before["completed_at"], existing.completed_at),
+                    },
+                    request_id=request_id,
+                )
                 session.commit()
                 updated += 1
             else:
@@ -345,6 +436,31 @@ def import_subcomponents(
                     user_id=current_user.user_id,
                 )
                 session.add(subcomponent)
+                session.flush()
+                log_changes(
+                    session,
+                    entity_type="subcomponent",
+                    entity_id=subcomponent.subcomponent_id,
+                    user_id=current_user.user_id,
+                    action="create",
+                    changes={
+                        "subcomponent_name": (None, subcomponent.subcomponent_name),
+                        "status": (None, subcomponent.status),
+                        "priority": (None, subcomponent.priority),
+                        "due_date": (None, subcomponent.due_date),
+                        "sub_phase": (None, subcomponent.sub_phase),
+                        "description": (None, subcomponent.description),
+                        "notes": (None, subcomponent.notes),
+                        "category": (None, subcomponent.category),
+                        "dependencies": (None, subcomponent.dependencies),
+                        "work_estimate": (None, subcomponent.work_estimate),
+                        "owner": (None, subcomponent.owner),
+                        "assignee": (None, subcomponent.assignee),
+                        "approver": (None, subcomponent.approver),
+                        "completed_at": (None, subcomponent.completed_at),
+                    },
+                    request_id=request_id,
+                )
                 session.commit()
                 created += 1
         except ValueError as exc:
@@ -437,12 +553,14 @@ def update_subcomponent(
     payload: SubcomponentUpdate,
     session: Session = Depends(get_db),
     tasks: BackgroundTasks = None,
+    current_user: User = Depends(current_user_dep),
 ):
     subcomponent = _get_subcomponent(session, subcomponent_id)
     if "sub_phase" in payload.model_fields_set:
         _validate_sub_phase(session, subcomponent.solution_id, payload.sub_phase)
 
     update_data = payload.model_dump(exclude_unset=True)
+    before = {field: getattr(subcomponent, field) for field in update_data.keys()}
     for field, value in update_data.items():
         setattr(subcomponent, field, value)
 
@@ -467,6 +585,15 @@ def update_subcomponent(
             )
 
     session.add(subcomponent)
+    if update_data:
+        log_changes(
+            session,
+            entity_type="subcomponent",
+            entity_id=subcomponent.subcomponent_id,
+            user_id=current_user.user_id,
+            action="update",
+            changes={field: (before.get(field), getattr(subcomponent, field)) for field in update_data.keys()},
+        )
     session.commit()
     session.refresh(subcomponent)
     schedule_broadcast("subcomponents")
@@ -474,12 +601,24 @@ def update_subcomponent(
 
 
 @router.delete("/subcomponents/{subcomponent_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_subcomponent(subcomponent_id: str, session: Session = Depends(get_db)):
+def delete_subcomponent(
+    subcomponent_id: str,
+    session: Session = Depends(get_db),
+    current_user: User = Depends(current_user_dep),
+):
     subcomponent = _get_subcomponent(session, subcomponent_id)
     now = datetime.now(timezone.utc)
     subcomponent.deleted_at = now
     subcomponent.updated_at = now
     session.add(subcomponent)
+    log_changes(
+        session,
+        entity_type="subcomponent",
+        entity_id=subcomponent.subcomponent_id,
+        user_id=current_user.user_id,
+        action="delete",
+        changes={"deleted_at": (None, now)},
+    )
     session.commit()
     schedule_broadcast("subcomponents")
     return None

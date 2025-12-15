@@ -165,14 +165,14 @@ async function fetchCurrentUser() {
 async function performLogin(email, password) {
   return api("/auth/login", {
     method: "POST",
-    body: JSON.stringify({ email, password }),
+    body: JSON.stringify({ soeid: email, password }),
   });
 }
 
 async function performRegister(display_name, email, password) {
   return api("/auth/register", {
     method: "POST",
-    body: JSON.stringify({ display_name, email, password }),
+    body: JSON.stringify({ display_name, soeid: email, password }),
   });
 }
 
@@ -186,7 +186,7 @@ function bindAuthUI() {
     showAuthError("");
     const form = new FormData(els.loginForm);
     try {
-      const user = await performLogin(form.get("email"), form.get("password"));
+      const user = await performLogin(form.get("soeid"), form.get("password"));
       setAuthed(user);
       setAuthVisible(false);
       startLiveSyncOnce();
@@ -203,7 +203,7 @@ function bindAuthUI() {
     showAuthError("");
     const form = new FormData(els.registerForm);
     try {
-      const user = await performRegister(form.get("display_name"), form.get("email"), form.get("password"));
+      const user = await performRegister(form.get("display_name"), form.get("soeid"), form.get("password"));
       setAuthed(user);
       setAuthVisible(false);
       startLiveSyncOnce();

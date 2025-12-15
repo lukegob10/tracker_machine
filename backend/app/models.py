@@ -12,6 +12,7 @@ from sqlalchemy import (
     Integer,
     String,
     UniqueConstraint,
+    Index,
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
@@ -37,9 +38,13 @@ class SoftDeleteMixin:
 
 class User(TimestampMixin, Base):
     __tablename__ = "users"
-    __table_args__ = (UniqueConstraint("email", name="uix_user_email"),)
+    __table_args__ = (
+        UniqueConstraint("email", name="uix_user_email"),
+        UniqueConstraint("soeid", name="uix_user_soeid"),
+    )
 
     user_id: Mapped[str] = mapped_column(String, primary_key=True, default=lambda: str(uuid4()))
+    soeid: Mapped[str] = mapped_column(String, nullable=False, unique=True, index=True)
     email: Mapped[str] = mapped_column(String, nullable=False, unique=True, index=True)
     display_name: Mapped[str] = mapped_column(String, nullable=False)
     password_hash: Mapped[str] = mapped_column(String, nullable=False)
@@ -49,6 +54,26 @@ class User(TimestampMixin, Base):
     locked_until: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     last_login_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     external_id: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+
+
+class ChangeLog(Base):
+    __tablename__ = "change_log"
+    __table_args__ = (
+        Index("idx_change_entity_created", "entity_type", "entity_id", "created_at"),
+        Index("idx_change_user_created", "user_id", "created_at"),
+        Index("idx_change_request", "request_id"),
+    )
+
+    change_id: Mapped[str] = mapped_column(String, primary_key=True, default=lambda: str(uuid4()))
+    entity_type: Mapped[str] = mapped_column(String, nullable=False)
+    entity_id: Mapped[str] = mapped_column(String, nullable=False)
+    action: Mapped[str] = mapped_column(String, nullable=False)
+    field: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    old_value: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    new_value: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    user_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    request_id: Mapped[Optional[str]] = mapped_column(String, nullable=True, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False, index=True)
 
 
 class Project(TimestampMixin, SoftDeleteMixin, Base):
