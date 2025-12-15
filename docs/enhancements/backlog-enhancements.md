@@ -3,10 +3,10 @@
 These items are prioritized to increase stickiness, credibility, and governance clarity without bloating the workflow.
 
 ## Near-Term (low friction, high trust)
-- **Immutable change log:** capture who changed status/ownership/phase, when, and old→new values (visible per Project/Solution/Subcomponent). Drives audit comfort and team trust.
-- **One-click exec summary export:** PDF/PowerPoint-ready snapshot of Projects/Solutions with RAG, owners, blockers, and next decisions. Saves status-report time.
+- **Immutable change log (shipping):** capture who changed status/ownership/phase, when, and old→new values (visible per Project/Solution/Subcomponent). Drives audit comfort and team trust.
+- **One-click exec summary export (planned):** PDF/PowerPoint-ready snapshot of Projects/Solutions with RAG, owners, blockers, and next decisions. Saves status-report time.
 - **Blockers/risks callout:** lightweight fields on Solutions and Subcomponents to mark blocker/owner/ETA; surfaced in dashboard “Needs Attention.”
-- **Ownership surfacing:** show Sponsor/Solution Owner/Component Owner inline on cards/tables; filter by owner to answer “whose item is this?” quickly.
+- **Ownership surfacing (in progress):** show Sponsor/Solution Owner/Component Owner inline on cards/tables; filter by owner to answer “whose item is this?” quickly. Back-end filters added; UI columns/filters wired; ensure DB updated for SOEID-based auth.
 - **CSV/Excel polish:** prevalidated template download (with required columns highlighted) and import preview that lists errors before commit.
 
 ## Mid-Term (governance and reporting depth)

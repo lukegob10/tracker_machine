@@ -90,6 +90,8 @@ def list_subcomponents(
     sub_phase: Optional[str] = None,
     due_before: Optional[date] = None,
     due_after: Optional[date] = None,
+    owner: Optional[str] = None,
+    assignee: Optional[str] = None,
     session: Session = Depends(get_db),
 ):
     _ensure_solution(session, solution_id)
@@ -108,6 +110,10 @@ def list_subcomponents(
         query = query.filter(Subcomponent.due_date <= due_before)
     if due_after:
         query = query.filter(Subcomponent.due_date >= due_after)
+    if owner:
+        query = query.filter(Subcomponent.owner == owner)
+    if assignee:
+        query = query.filter(Subcomponent.assignee == assignee)
     # optional search could be added later
     return query.order_by(Subcomponent.priority.asc(), Subcomponent.created_at.asc()).all()
 
