@@ -7,9 +7,9 @@ from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, 
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
-from .deps import get_db
+from .deps import get_db, current_user as current_user_dep
 from .enums import ProjectStatus, SolutionStatus, SubcomponentStatus
-from .models import Phase, Project, Solution, SolutionPhase, Subcomponent
+from .models import Phase, Project, Solution, SolutionPhase, Subcomponent, User
 from .schemas import (
     SubcomponentCreate,
     SubcomponentRead,
@@ -18,7 +18,6 @@ from .schemas import (
 from .utils import (
     derive_abbreviation,
     enable_all_phases,
-    get_default_user_id,
     normalize_status,
     normalize_str,
     parse_date,
@@ -121,6 +120,7 @@ def create_subcomponent(
     payload: SubcomponentCreate,
     session: Session = Depends(get_db),
     tasks: BackgroundTasks = None,
+    current_user: User = Depends(current_user_dep),
 ):
     solution = _ensure_solution(session, solution_id)
     _validate_sub_phase(session, solution_id, payload.sub_phase)
@@ -160,7 +160,7 @@ def create_subcomponent(
         approver=payload.approver,
         created_at=now,
         updated_at=now,
-        user_id=get_default_user_id(),
+        user_id=current_user.user_id,
     )
     session.add(subcomponent)
     session.commit()
@@ -170,7 +170,12 @@ def create_subcomponent(
 
 
 @router.post("/subcomponents/import")
-def import_subcomponents(file: UploadFile = File(...), session: Session = Depends(get_db), tasks: BackgroundTasks = None):
+def import_subcomponents(
+    file: UploadFile = File(...),
+    session: Session = Depends(get_db),
+    tasks: BackgroundTasks = None,
+    current_user: User = Depends(current_user_dep),
+):
     rows, errors = read_csv(file.file.read())
     if errors:
         return {
@@ -252,7 +257,7 @@ def import_subcomponents(file: UploadFile = File(...), session: Session = Depend
                 status=ProjectStatus.not_started,
                 description=None,
                 sponsor=sponsor_val,
-                user_id=get_default_user_id(),
+                user_id=current_user.user_id,
             )
             session.add(project)
             session.flush()  # ensure project_id available
@@ -272,7 +277,7 @@ def import_subcomponents(file: UploadFile = File(...), session: Session = Depend
                     description=None,
                     owner=owner_val or "Auto-created",
                     key_stakeholder=None,
-                    user_id=get_default_user_id(),
+                    user_id=current_user.user_id,
                 )
                 session.add(solution)
                 session.commit()
@@ -337,7 +342,7 @@ def import_subcomponents(file: UploadFile = File(...), session: Session = Depend
                     assignee=assignee_val,
                     approver=approver_val,
                     completed_at=completed_at,
-                    user_id=get_default_user_id(),
+                    user_id=current_user.user_id,
                 )
                 session.add(subcomponent)
                 session.commit()

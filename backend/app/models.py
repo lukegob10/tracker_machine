@@ -35,6 +35,22 @@ class SoftDeleteMixin:
     )
 
 
+class User(TimestampMixin, Base):
+    __tablename__ = "users"
+    __table_args__ = (UniqueConstraint("email", name="uix_user_email"),)
+
+    user_id: Mapped[str] = mapped_column(String, primary_key=True, default=lambda: str(uuid4()))
+    email: Mapped[str] = mapped_column(String, nullable=False, unique=True, index=True)
+    display_name: Mapped[str] = mapped_column(String, nullable=False)
+    password_hash: Mapped[str] = mapped_column(String, nullable=False)
+    role: Mapped[str] = mapped_column(String, nullable=False, default="user")
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    failed_attempts: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    locked_until: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    last_login_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    external_id: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+
+
 class Project(TimestampMixin, SoftDeleteMixin, Base):
     __tablename__ = "projects"
     __table_args__ = (UniqueConstraint("project_name", name="uix_project_name"),)

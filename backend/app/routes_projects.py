@@ -8,11 +8,11 @@ from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, status,
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
-from .deps import get_db
+from .deps import get_db, current_user as current_user_dep
 from .enums import ProjectStatus
-from .models import Project
+from .models import Project, User
 from .schemas import ProjectCreate, ProjectRead, ProjectUpdate
-from .utils import derive_abbreviation, get_default_user_id, normalize_status, normalize_str, read_csv
+from .utils import derive_abbreviation, normalize_status, normalize_str, read_csv
 from .realtime import schedule_broadcast
 
 router = APIRouter()
@@ -49,7 +49,12 @@ def list_projects(
 
 @router.post("", response_model=ProjectRead, status_code=status.HTTP_201_CREATED)
 @router.post("/", response_model=ProjectRead, status_code=status.HTTP_201_CREATED)
-def create_project(payload: ProjectCreate, session: Session = Depends(get_db), tasks: BackgroundTasks = None):
+def create_project(
+    payload: ProjectCreate,
+    session: Session = Depends(get_db),
+    tasks: BackgroundTasks = None,
+    current_user: User = Depends(current_user_dep),
+):
     existing = (
         session.query(Project)
         .filter(Project.project_name == payload.project_name)
@@ -67,7 +72,7 @@ def create_project(payload: ProjectCreate, session: Session = Depends(get_db), t
         status=payload.status,
         description=payload.description,
         sponsor=payload.sponsor,
-        user_id=get_default_user_id(),
+        user_id=current_user.user_id,
     )
     session.add(project)
     session.commit()
@@ -77,7 +82,12 @@ def create_project(payload: ProjectCreate, session: Session = Depends(get_db), t
 
 
 @router.post("/import")
-def import_projects(file: UploadFile = File(...), session: Session = Depends(get_db), tasks: BackgroundTasks = None):
+def import_projects(
+    file: UploadFile = File(...),
+    session: Session = Depends(get_db),
+    tasks: BackgroundTasks = None,
+    current_user: User = Depends(current_user_dep),
+):
     rows, errors = read_csv(file.file.read())
     if errors:
         return {"created": 0, "updated": 0, "errors": errors, "total_rows": 0}
@@ -132,7 +142,7 @@ def import_projects(file: UploadFile = File(...), session: Session = Depends(get
                     status=status_enum,
                     description=description,
                     sponsor=sponsor,
-                    user_id=get_default_user_id(),
+                    user_id=current_user.user_id,
                 )
                 session.add(project)
                 created += 1

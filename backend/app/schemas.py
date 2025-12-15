@@ -1,9 +1,36 @@
 from datetime import datetime, date
 from typing import Optional
 
-from pydantic import BaseModel, ConfigDict, constr
+from pydantic import BaseModel, ConfigDict, constr, EmailStr
 
 from .enums import ProjectStatus, SolutionStatus, SubcomponentStatus
+
+
+class UserBase(BaseModel):
+    email: EmailStr
+    display_name: str
+
+
+class UserCreate(UserBase):
+    password: constr(min_length=8)  # type: ignore[type-arg]
+
+
+class UserLogin(BaseModel):
+    email: EmailStr
+    password: str
+
+
+class UserRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    user_id: str
+    email: EmailStr
+    display_name: str
+    role: str
+    is_active: bool
+    last_login_at: Optional[datetime] = None
+    created_at: datetime
+    updated_at: datetime
 
 
 class ProjectBase(BaseModel):

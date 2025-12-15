@@ -7,6 +7,27 @@
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
+  <div id="auth-screen" class="auth-screen hidden">
+    <div class="auth-card">
+      <div class="auth-tabs">
+        <button id="auth-tab-login" class="auth-tab active" type="button">Log in</button>
+        <button id="auth-tab-register" class="auth-tab" type="button">Create account</button>
+      </div>
+      <form id="login-form" class="auth-form">
+        <label>Email <input type="email" name="email" autocomplete="username" required /></label>
+        <label>Password <input type="password" name="password" autocomplete="current-password" required /></label>
+        <button type="submit">Log in</button>
+      </form>
+      <form id="register-form" class="auth-form hidden">
+        <label>Name <input type="text" name="display_name" autocomplete="name" required /></label>
+        <label>Email <input type="email" name="email" autocomplete="username" required /></label>
+        <label>Password <input type="password" name="password" autocomplete="new-password" required /></label>
+        <button type="submit">Create account</button>
+      </form>
+      <div id="auth-error" class="auth-error" role="status"></div>
+    </div>
+  </div>
+
   <div id="app-shell">
     <aside class="sidebar">
       <div class="brand">Inventory Tool</div>
@@ -28,6 +49,8 @@
           <span id="connection-status" class="pill">Loading…</span>
         </div>
         <div class="topbar-actions">
+          <span id="current-user" class="pill muted"></span>
+          <button id="logout-btn" class="secondary">Logout</button>
           <button id="theme-toggle" class="secondary">Light Mode</button>
         </div>
       </header>

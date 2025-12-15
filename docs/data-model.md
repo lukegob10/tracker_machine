@@ -2,7 +2,7 @@
 
 SQLite schema for Jira-lite with projects, solutions, and subcomponents. All timestamps stored as ISO8601 in UTC. Foreign keys are enforced (`PRAGMA foreign_keys = ON`). Pair this reference with `docs/api-documentation.md` for routes/payloads and `docs/ui-overview.md` for how the UI exercises these fields.
 
-User attribution: `user_id` is auto-populated server-side (currently the server account or `JIRA_LITE_USER_ID`/`USER`/`USERNAME`/`LOGNAME` if set); clients do not pass it yet.
+User attribution: `user_id` is populated from the authenticated user; legacy env fallback (`JIRA_LITE_USER_ID`/`USER`/`USERNAME`/`LOGNAME`) applies only to dev/seeding contexts.
 
 ## Entities at a Glance
 - Project: top-level container with name, 4-char abbreviation, status, description, and a required Sponsor; stores `project_id`, `user_id`, timestamps, and soft delete metadata but those fields are not surfaced in the UI.
