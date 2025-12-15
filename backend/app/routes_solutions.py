@@ -7,6 +7,7 @@ from uuid import uuid4
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, status, BackgroundTasks
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 
 from .deps import get_db, current_user as current_user_dep
 from .enums import ProjectStatus, SolutionStatus
@@ -53,12 +54,15 @@ def _get_solution_or_404(session: Session, solution_id: str) -> Solution:
 def list_solutions(
     project_id: str,
     status_filter: Optional[SolutionStatus] = None,
+    owner: Optional[str] = None,
     session: Session = Depends(get_db),
 ):
     _ensure_project_exists(session, project_id)
     query = _solution_query(session).filter(Solution.project_id == project_id)
     if status_filter:
         query = query.filter(Solution.status == status_filter)
+    if owner:
+        query = query.filter(func.lower(Solution.owner) == owner.strip().lower())
     solutions = query.all()
     return solutions
 

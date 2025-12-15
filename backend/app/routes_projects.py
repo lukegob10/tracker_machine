@@ -8,6 +8,7 @@ from uuid import uuid4
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, status, BackgroundTasks
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 
 from .deps import get_db, current_user as current_user_dep
 from .enums import ProjectStatus
@@ -40,11 +41,15 @@ def _get_project_or_404(session: Session, project_id: str) -> Project:
 @router.get("/", response_model=List[ProjectRead])
 def list_projects(
     status_filter: Optional[ProjectStatus] = None,
+    sponsor: Optional[str] = None,
     session: Session = Depends(get_db),
 ):
     query = _project_query(session)
     if status_filter:
         query = query.filter(Project.status == status_filter)
+    if sponsor:
+        sponsor_norm = sponsor.strip().lower()
+        query = query.filter(func.lower(Project.sponsor) == sponsor_norm)
     projects = query.all()
     return projects
 

@@ -450,6 +450,12 @@ function renderMasterFilters() {
   const projectOpts = state.projects.map((p) => `<option value="${p.project_id}">${p.project_name}</option>`).join("");
   const solutionOpts = state.solutions.map((s) => `<option value="${s.solution_id}">${s.solution_name}</option>`).join("");
   const phaseOpts = state.phases.map((p) => `<option value="${p.phase_id}">${p.phase_name}</option>`).join("");
+  const ownerOptions = Array.from(new Set(state.subcomponents.map((s) => s.owner).filter(Boolean))).map(
+    (o) => `<option value="${o}">${o}</option>`
+  ).join("");
+  const assigneeOptions = Array.from(new Set(state.subcomponents.map((s) => s.assignee).filter(Boolean))).map(
+    (o) => `<option value="${o}">${o}</option>`
+  ).join("");
   root.innerHTML = `
     <label>Status
       <select data-filter="status">
@@ -471,6 +477,12 @@ function renderMasterFilters() {
       <select data-filter="sub_phase"><option value="">Any</option>${phaseOpts}</select>
     </label>
     <label>Priority ≤ <input type="number" data-filter="priority" min="0" max="5" /></label>
+    <label>Owner
+      <select data-filter="owner"><option value="">Any</option>${ownerOptions}</select>
+    </label>
+    <label>Assignee
+      <select data-filter="assignee"><option value="">Any</option>${assigneeOptions}</select>
+    </label>
     <label>Search <input type="text" data-filter="search" placeholder="Name or description" /></label>
   `;
   root.querySelectorAll("[data-filter]").forEach((el) => {
@@ -493,6 +505,8 @@ function filteredSubcomponents() {
     if (f.solution_id && s.solution_id !== f.solution_id) return false;
     if (f.sub_phase && s.sub_phase !== f.sub_phase) return false;
     if (f.priority && Number(s.priority) > Number(f.priority)) return false;
+    if (f.owner && s.owner !== f.owner) return false;
+    if (f.assignee && s.assignee !== f.assignee) return false;
     if (f.search) {
       const text = `${s.subcomponent_name || ""} ${s.description || ""}`.toLowerCase();
       if (!text.includes(f.search.toLowerCase())) return false;
@@ -531,14 +545,16 @@ function formatStatus(status) {
 function renderMasterTable() {
   if (!els.masterTable) return;
   const rows = filteredSubcomponents();
-  const header = ["Project", "Solution", "Subcomponent", "Owner", "Assignee", "Subphase", "Priority", "Due", "Status", "Progress"];
+  const header = ["Project", "Sponsor", "Solution", "Solution Owner", "Subcomponent", "Owner", "Assignee", "Subphase", "Priority", "Due", "Status", "Progress"];
   let html = "<table><thead><tr>" + header.map((h) => `<th>${h}</th>`).join("") + "</tr></thead><tbody>";
   rows.forEach((r) => {
     const project = state.projects.find((p) => p.project_id === r.project_id);
     const solution = state.solutions.find((s) => s.solution_id === r.solution_id);
     html += `<tr>
       <td>${project?.project_name || "–"}</td>
+      <td>${project?.sponsor || "–"}</td>
       <td>${solution?.solution_name || "–"}</td>
+      <td>${solution?.owner || "–"}</td>
       <td>${r.subcomponent_name || "Untitled"}</td>
       <td>${r.owner || "–"}</td>
       <td>${r.assignee || "–"}</td>
@@ -1088,7 +1104,7 @@ function renderCalendar() {
   let html = "";
   entries.forEach(([day, items]) => {
     html += `<div class="calendar-day"><strong>${day}</strong>${items
-      .map((i) => `<div>${i.subcomponent_name} (${formatStatus(i.status)})</div>`)
+      .map((i) => `<div>${i.subcomponent_name} (${formatStatus(i.status)}) • Owner ${i.owner || "—"} • Assignee ${i.assignee || "—"}</div>`)
       .join("")}</div>`;
   });
   els.calendarGrid.innerHTML = html;
