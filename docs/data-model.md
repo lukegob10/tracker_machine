@@ -163,7 +163,7 @@ Allowed values
 - priority: `0` (highest) to `5` (lowest)
 - sub_phase: slug from `phases.phase_id` (ordered by `sequence`; solutions can enable/disable via `solution_phases`)
   - Backlog: Backlog
-  - Planning: Requirements, Controls & Scoping; Resourcing & Timeline; PoC; Delivery and Success Criteria
+  - Planning: Requirements, Controls & Scoping; Resourcing & Timeline; Proof of Concept; Delivery and Success Criteria
   - Development: Design, Build & Documentation; Sandbox Deployment; Socialization & Signoff
   - Deployment & Testing: Deployment Preparation; DEV Deployment; UAT Deployment; PROD Deployment
   - Closure: Go Live; Closure and Signoff; Handoff and offboarding

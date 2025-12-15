@@ -449,7 +449,7 @@ function renderMasterFilters() {
   if (!root) return;
   const projectOpts = state.projects.map((p) => `<option value="${p.project_id}">${p.project_name}</option>`).join("");
   const solutionOpts = state.solutions.map((s) => `<option value="${s.solution_id}">${s.solution_name}</option>`).join("");
-  const phaseOpts = state.phases.map((p) => `<option value="${p.phase_id}">${p.phase_name}</option>`).join("");
+  const phaseOpts = state.phases.map((p) => `<option value="${p.phase_id}">${phaseDisplayName(p.phase_id)}</option>`).join("");
   const ownerOptions = Array.from(new Set(state.subcomponents.map((s) => s.owner).filter(Boolean))).map(
     (o) => `<option value="${o}">${o}</option>`
   ).join("");
@@ -540,6 +540,14 @@ function formatStatus(status) {
     .split("_")
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join(" ");
+}
+
+function phaseDisplayName(phaseId) {
+  if (!phaseId) return "";
+  const phase = state.phases.find((p) => p.phase_id === phaseId);
+  const name = phase?.phase_name || phaseId;
+  if (phaseId === "poc" || name.toLowerCase() === "poc") return "Proof of Concept";
+  return name;
 }
 
 function renderMasterTable() {
@@ -829,7 +837,7 @@ function renderSolutionPhases(selectedId) {
   let html = "<table><thead><tr><th>Phase</th><th>Enabled</th></tr></thead><tbody>";
   state.phases.forEach((p) => {
     const checked = enabled.has(p.phase_id) ? "checked" : "";
-    html += `<tr><td>${p.phase_name} <span class="muted">(${p.phase_group})</span></td><td><input type="checkbox" data-phase-id="${p.phase_id}" ${checked}></td></tr>`;
+    html += `<tr><td>${phaseDisplayName(p.phase_id)} <span class="muted">(${p.phase_group})</span></td><td><input type="checkbox" data-phase-id="${p.phase_id}" ${checked}></td></tr>`;
   });
   html += "</tbody></table>";
   els.phasesTable.innerHTML = html;
@@ -1003,8 +1011,7 @@ function updateSubphaseOptions() {
   if (!sel) return;
   const solutionId = els.subcomponentForm.querySelector('[name="solution_id"]')?.value;
   const phases = orderedPhases(solutionId).map((p) => {
-    const ph = state.phases.find((x) => x.phase_id === p.phase_id);
-    return `<option value="${p.phase_id}">${ph?.phase_name || p.phase_id}</option>`;
+    return `<option value="${p.phase_id}">${phaseDisplayName(p.phase_id) || p.phase_id}</option>`;
   });
   sel.innerHTML = `<option value="">None</option>${phases.join("")}`;
 }

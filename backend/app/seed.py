@@ -12,7 +12,7 @@ PHASES_SEED = [
     ("requirements", "Planning", "Requirements"),
     ("controls_scoping", "Planning", "Controls & Scoping"),
     ("resourcing_timeline", "Planning", "Resourcing & Timeline"),
-    ("poc", "Planning", "PoC"),
+    ("poc", "Planning", "Proof of Concept"),
     ("delivery_success", "Planning", "Delivery and Success Criteria"),
     ("design", "Development", "Design"),
     ("build_docs", "Development", "Build & Documentation"),
