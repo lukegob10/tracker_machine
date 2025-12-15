@@ -165,6 +165,45 @@ main {
   background: rgba(255, 255, 255, 0.03);
 }
 
+.phase-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 10px;
+}
+.phase-group {
+  margin-bottom: 12px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 10px;
+}
+.phase-group-title {
+  font-weight: 700;
+  margin: 0 0 8px;
+}
+.phase-cell {
+  background: var(--panel-soft);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px;
+  display: grid;
+  gap: 6px;
+}
+.phase-title {
+  font-weight: 600;
+}
+.phase-meta {
+  color: var(--muted);
+  font-size: 13px;
+}
+.phase-toggle {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  font-size: 13px;
+  color: var(--text);
+}
+
 .pill {
   display: inline-block;
   padding: 6px 10px;
@@ -441,6 +480,13 @@ button:disabled {
   grid-template-columns: 1fr 1fr;
   gap: 8px;
   margin-bottom: 12px;
+}
+.auth-brand {
+  text-align: center;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  margin-bottom: 12px;
+  font-size: 20px;
 }
 .auth-tab {
   padding: 10px;

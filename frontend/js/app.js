@@ -566,7 +566,7 @@ function renderMasterTable() {
       <td>${r.subcomponent_name || "Untitled"}</td>
       <td>${r.owner || "–"}</td>
       <td>${r.assignee || "–"}</td>
-      <td>${r.sub_phase || "–"}</td>
+      <td>${phaseDisplayName(r.sub_phase) || "–"}</td>
       <td>${r.priority ?? ""}</td>
       <td>${r.due_date || ""}</td>
       <td>${formatStatus(r.status)}</td>
@@ -834,14 +834,31 @@ function renderSolutionPhases(selectedId) {
     return;
   }
   const enabled = new Set((state.solutionPhases[solutionId] || []).filter((p) => p.is_enabled).map((p) => p.phase_id));
-  let html = "<table><thead><tr><th>Phase</th><th>Enabled</th></tr></thead><tbody>";
+  const grouped = {};
   state.phases.forEach((p) => {
-    const checked = enabled.has(p.phase_id) ? "checked" : "";
-    html += `<tr><td>${phaseDisplayName(p.phase_id)} <span class="muted">(${p.phase_group})</span></td><td><input type="checkbox" data-phase-id="${p.phase_id}" ${checked}></td></tr>`;
+    grouped[p.phase_group] = grouped[p.phase_group] || [];
+    grouped[p.phase_group].push(p);
   });
-  html += "</tbody></table>";
-  els.phasesTable.innerHTML = html;
-  els.phasesTable.querySelectorAll('input[type="checkbox"]').forEach((box) => {
+  const groupHtml = Object.entries(grouped)
+    .map(([groupName, phases]) => {
+      const cards = phases
+        .map((p) => {
+          const checked = enabled.has(p.phase_id) ? "checked" : "";
+          return `<div class="phase-cell">
+            <div class="phase-title">${phaseDisplayName(p.phase_id)}</div>
+            <div class="phase-meta">${groupName}</div>
+            <label class="phase-toggle">
+              <input type="checkbox" data-phase-id="${p.phase_id}" ${checked}>
+              <span>Enabled</span>
+            </label>
+          </div>`;
+        })
+        .join("");
+      return `<div class="phase-group"><div class="phase-group-title">${groupName}</div><div class="phase-grid">${cards}</div></div>`;
+    })
+    .join("");
+  els.phasesTable.innerHTML = groupHtml;
+  els.phasesTable.querySelectorAll('input[data-phase-id]').forEach((box) => {
     box.addEventListener("change", async () => {
       const phases = state.phases.map((ph) => ({
         phase_id: ph.phase_id,
@@ -1089,7 +1106,7 @@ function renderKanbanCards(cards) {
     .map((c) => {
       const proj = state.projects.find((p) => p.project_id === c.project_id)?.project_name || "";
       const sol = state.solutions.find((s) => s.solution_id === c.solution_id)?.solution_name || "";
-      const statusLabel = c.sub_phase || formatStatus(c.status);
+      const statusLabel = phaseDisplayName(c.sub_phase) || formatStatus(c.status);
       return `<div class="kanban-card"><strong>${c.subcomponent_name}</strong><div class="meta">${proj}${sol ? " • " + sol : ""}</div><div class="meta">Owner ${c.owner || "—"} • Assignee ${c.assignee || "—"}</div><div class="meta">P${c.priority ?? ""} • ${statusLabel}</div><div class="meta">Due ${c.due_date || "—"}</div></div>`;
     })
     .join("");
