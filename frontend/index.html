@@ -137,40 +137,51 @@
                 <input type="file" id="solutions-file" accept=".csv" hidden />
                 <span id="solutions-import-result" class="import-result"></span>
               </div>
-              <form id="solution-form" class="form compact">
-                <input type="hidden" name="solution_id" />
-                <label class="wide">Project
-                  <select name="project_id" required></select>
-                </label>
-                <label class="wide">Solution <input name="solution_name" required /></label>
-                <label>Version <input name="version" value="0.1.0" /></label>
-                <label>Status
-                  <select name="status">
-                    <option value="not_started">Not started</option>
-                    <option value="active">Active</option>
-                    <option value="on_hold">On hold</option>
-                    <option value="complete">Complete</option>
-                    <option value="abandoned">Abandoned</option>
-                  </select>
-                </label>
-                <label class="wide">Solution Owner <input name="owner" required /></label>
-                <label class="wide">Key Stakeholder <input name="key_stakeholder" /></label>
-                <label class="full-span">Description <textarea name="description"></textarea></label>
-                <div class="form-actions full-span">
-                  <button type="submit">Save Edit</button>
-                  <button type="button" id="new-solution" class="secondary">New</button>
-                  <button type="reset" class="secondary">Reset</button>
-                </div>
-              </form>
-              <div id="solution-list" class="table"></div>
-              <details id="solution-phases" class="panel soft">
-                <summary>Phases for Selected Solution</summary>
-                <div id="phases-table" class="table"></div>
-              </details>
-            </div>
-          </div>
-        </div>
-      </section>
+	              <form id="solution-form" class="form compact">
+	                <input type="hidden" name="solution_id" />
+	                <label class="wide">Project
+	                  <select name="project_id" required></select>
+	                </label>
+	                <label class="wide">Solution <input name="solution_name" required /></label>
+	                <label>Version <input name="version" value="0.1.0" /></label>
+	                <label>Status
+	                  <select name="status">
+	                    <option value="not_started">Not started</option>
+	                    <option value="active">Active</option>
+	                    <option value="on_hold">On hold</option>
+	                    <option value="complete">Complete</option>
+	                    <option value="abandoned">Abandoned</option>
+	                  </select>
+	                </label>
+	                <label>Priority
+	                  <input type="number" name="priority" min="0" max="5" value="3" />
+	                </label>
+	                <label>Due Date <input type="date" name="due_date" /></label>
+	                <label class="wide">Current Phase
+	                  <select name="current_phase"></select>
+	                </label>
+	                <label class="wide">Solution Owner <input name="owner" required /></label>
+	                <label class="wide">Assignee <input name="assignee" /></label>
+	                <label class="wide">Approver <input name="approver" /></label>
+	                <label class="wide">Key Stakeholder <input name="key_stakeholder" /></label>
+	                <label class="full-span">Description <textarea name="description"></textarea></label>
+	                <label class="full-span">Blockers <textarea name="blockers"></textarea></label>
+	                <label class="full-span">Risks <textarea name="risks"></textarea></label>
+	                <div class="form-actions full-span">
+	                  <button type="submit">Save Edit</button>
+	                  <button type="button" id="new-solution" class="secondary">New</button>
+		                  <button type="reset" class="secondary">Reset</button>
+		                </div>
+		              </form>
+	              <details id="solution-phases" class="panel soft">
+	                <summary>Phases for Selected Solution</summary>
+	                <div id="phases-table" class="table"></div>
+	              </details>
+	              <div id="solution-list" class="table"></div>
+	            </div>
+	          </div>
+	        </div>
+	      </section>
 
       <section id="view-subcomponents" class="view">
         <div class="panel">
@@ -183,42 +194,35 @@
             <input type="file" id="subcomponents-file" accept=".csv" hidden />
             <span id="subcomponents-import-result" class="import-result"></span>
           </div>
-          <form id="subcomponent-form" class="form compact">
-            <input type="hidden" name="subcomponent_id" />
-            <label class="wide">Project
-              <select name="project_id" required></select>
-            </label>
-            <label class="wide">Solution
-              <select name="solution_id" required></select>
-            </label>
-            <label>Subphase
-              <select name="sub_phase"></select>
-            </label>
-            <label>Priority
-              <input type="number" name="priority" min="0" max="5" value="3" />
-            </label>
-            <label>Due Date <input type="date" name="due_date" /></label>
-            <label>Status
-              <select name="status">
-                <option value="to_do">To do</option>
-                <option value="in_progress">In progress</option>
-                <option value="on_hold">On hold</option>
-                <option value="complete">Complete</option>
-                <option value="abandoned">Abandoned</option>
-              </select>
-            </label>
-            <label>Owner <input name="owner" required /></label>
-            <label>Assignee <input name="assignee" required /></label>
-            <label>Approver <input name="approver" /></label>
-            <label class="full-span">Component <input name="subcomponent_name" required /></label>
-            <label class="full-span">Description <textarea name="description"></textarea></label>
-            <label class="full-span">Notes <textarea name="notes"></textarea></label>
-            <div class="form-actions full-span">
-              <button type="submit">Save Edit</button>
-              <button type="button" id="new-subcomponent" class="secondary">New</button>
-              <button type="reset" class="secondary">Reset</button>
-            </div>
-          </form>
+	          <form id="subcomponent-form" class="form compact">
+	            <input type="hidden" name="subcomponent_id" />
+	            <label class="wide">Project
+	              <select name="project_id" required></select>
+	            </label>
+	            <label class="wide">Solution
+	              <select name="solution_id" required></select>
+	            </label>
+	            <label class="full-span">Task <input name="subcomponent_name" required /></label>
+	            <label>Priority
+	              <input type="number" name="priority" min="0" max="5" value="3" />
+	            </label>
+	            <label>Due Date <input type="date" name="due_date" /></label>
+	            <label>Status
+	              <select name="status">
+	                <option value="to_do">To do</option>
+	                <option value="in_progress">In progress</option>
+	                <option value="on_hold">On hold</option>
+	                <option value="complete">Complete</option>
+	                <option value="abandoned">Abandoned</option>
+	              </select>
+	            </label>
+	            <label>Assignee <input name="assignee" required /></label>
+	            <div class="form-actions full-span">
+	              <button type="submit">Save Edit</button>
+	              <button type="button" id="new-subcomponent" class="secondary">New</button>
+	              <button type="reset" class="secondary">Reset</button>
+	            </div>
+	          </form>
           <div id="subcomponent-list" class="table"></div>
         </div>
       </section>

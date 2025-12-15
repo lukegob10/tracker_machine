@@ -101,6 +101,36 @@ def set_solution_phases(
         )
         updated_items.append(sp)
         session.commit()
+
+    # If the solution's current_phase is now disabled, clear it to avoid invalid states.
+    solution = (
+        session.query(Solution)
+        .filter(Solution.solution_id == solution_id)
+        .filter(Solution.deleted_at.is_(None))
+        .first()
+    )
+    if solution and solution.current_phase:
+        enabled_ids = {
+            row[0]
+            for row in session.query(SolutionPhase.phase_id)
+            .filter(SolutionPhase.solution_id == solution_id)
+            .filter(SolutionPhase.is_enabled.is_(True))
+            .all()
+        }
+        if solution.current_phase not in enabled_ids:
+            before_phase = solution.current_phase
+            solution.current_phase = None
+            solution.updated_at = now
+            session.add(solution)
+            log_changes(
+                session,
+                entity_type="solution",
+                entity_id=solution.solution_id,
+                user_id=current_user.user_id,
+                action="update",
+                changes={"current_phase": (before_phase, solution.current_phase)},
+            )
+            session.commit()
     schedule_broadcast("solutions")
     return _ordered_solution_phases(session, solution_id)
 

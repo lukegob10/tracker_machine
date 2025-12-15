@@ -1,19 +1,27 @@
 import csv
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from io import StringIO
 from typing import List, Optional
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, status, BackgroundTasks
+from fastapi import APIRouter, Body, Depends, HTTPException, status, BackgroundTasks, Query
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 
 from .deps import get_db, current_user as current_user_dep
 from .enums import ProjectStatus, SolutionStatus
-from .models import Project, Solution, User
+from .models import Phase, Project, Solution, SolutionPhase, User
 from .schemas import SolutionCreate, SolutionRead, SolutionUpdate
-from .utils import derive_abbreviation, enable_all_phases, normalize_status, normalize_str, read_csv
+from .utils import (
+    derive_abbreviation,
+    enable_all_phases,
+    normalize_status,
+    normalize_str,
+    parse_date,
+    parse_priority,
+    read_csv,
+)
 from .realtime import schedule_broadcast
 from .audit_log import log_changes
 
@@ -47,14 +55,99 @@ def _get_solution_or_404(session: Session, solution_id: str) -> Solution:
     return solution
 
 
+def _enabled_phase_ids(session: Session, solution_id: str) -> set[str]:
+    rows = (
+        session.query(SolutionPhase.phase_id)
+        .filter(SolutionPhase.solution_id == solution_id)
+        .filter(SolutionPhase.is_enabled.is_(True))
+        .all()
+    )
+    return {r[0] for r in rows}
+
+
+def _last_enabled_phase_id(session: Session, solution_id: str) -> Optional[str]:
+    sort_key = func.coalesce(SolutionPhase.sequence_override, Phase.sequence)
+    row = (
+        session.query(SolutionPhase.phase_id)
+        .join(Phase, Phase.phase_id == SolutionPhase.phase_id)
+        .filter(SolutionPhase.solution_id == solution_id)
+        .filter(SolutionPhase.is_enabled.is_(True))
+        .order_by(sort_key.desc(), Phase.sequence.desc(), SolutionPhase.solution_phase_id.desc())
+        .first()
+    )
+    return row[0] if row else None
+
+
+def _validate_current_phase(session: Session, solution_id: str, current_phase: Optional[str]) -> None:
+    if not current_phase:
+        return
+    phase_exists = session.query(Phase).filter(Phase.phase_id == current_phase).first()
+    if not phase_exists:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"current_phase '{current_phase}' does not exist",
+        )
+    enabled = _enabled_phase_ids(session, solution_id)
+    if not enabled:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No phases enabled for this solution; current_phase must be null",
+        )
+    if current_phase not in enabled:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="current_phase must be one of the enabled phases for this solution",
+        )
+
+
+@router.get(
+    "/solutions",
+    response_model=List[SolutionRead],
+)
+def list_all_solutions(
+    project_id: Optional[str] = None,
+    status_filter: Optional[SolutionStatus] = Query(None, alias="status"),
+    owner: Optional[str] = None,
+    assignee: Optional[str] = None,
+    phase: Optional[str] = None,
+    priority: Optional[int] = None,
+    due_before: Optional[date] = None,
+    due_after: Optional[date] = None,
+    session: Session = Depends(get_db),
+):
+    query = _solution_query(session)
+    if project_id:
+        query = query.filter(Solution.project_id == project_id)
+    if status_filter:
+        query = query.filter(Solution.status == status_filter)
+    if owner:
+        query = query.filter(func.lower(Solution.owner) == owner.strip().lower())
+    if assignee:
+        query = query.filter(func.lower(Solution.assignee) == assignee.strip().lower())
+    if phase:
+        query = query.filter(Solution.current_phase == phase)
+    if priority is not None:
+        query = query.filter(Solution.priority == priority)
+    if due_before:
+        query = query.filter(Solution.due_date <= due_before)
+    if due_after:
+        query = query.filter(Solution.due_date >= due_after)
+    return query.order_by(Solution.priority.asc(), Solution.created_at.asc()).all()
+
+
 @router.get(
     "/projects/{project_id}/solutions",
     response_model=List[SolutionRead],
 )
 def list_solutions(
     project_id: str,
-    status_filter: Optional[SolutionStatus] = None,
+    status_filter: Optional[SolutionStatus] = Query(None, alias="status"),
     owner: Optional[str] = None,
+    assignee: Optional[str] = None,
+    phase: Optional[str] = None,
+    priority: Optional[int] = None,
+    due_before: Optional[date] = None,
+    due_after: Optional[date] = None,
     session: Session = Depends(get_db),
 ):
     _ensure_project_exists(session, project_id)
@@ -63,6 +156,16 @@ def list_solutions(
         query = query.filter(Solution.status == status_filter)
     if owner:
         query = query.filter(func.lower(Solution.owner) == owner.strip().lower())
+    if assignee:
+        query = query.filter(func.lower(Solution.assignee) == assignee.strip().lower())
+    if phase:
+        query = query.filter(Solution.current_phase == phase)
+    if priority is not None:
+        query = query.filter(Solution.priority == priority)
+    if due_before:
+        query = query.filter(Solution.due_date <= due_before)
+    if due_after:
+        query = query.filter(Solution.due_date >= due_after)
     solutions = query.all()
     return solutions
 
@@ -81,6 +184,15 @@ def create_solution(
 ):
     _ensure_project_exists(session, project_id)
 
+    current_phase = normalize_str(payload.current_phase) or None
+    if current_phase:
+        phase_exists = session.query(Phase).filter(Phase.phase_id == current_phase).first()
+        if not phase_exists:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"current_phase '{current_phase}' does not exist",
+            )
+
     conflict = (
         _solution_query(session)
         .filter(Solution.project_id == project_id)
@@ -94,14 +206,28 @@ def create_solution(
             detail="Solution name and version already exist for this project",
         )
 
+    now = datetime.now(timezone.utc)
+    completed_at = now if payload.status == SolutionStatus.complete else None
+    priority_val = parse_priority(payload.priority, default=3)
+
     solution = Solution(
         project_id=project_id,
         solution_name=payload.solution_name,
         version=payload.version,
         status=payload.status,
+        priority=priority_val,
+        due_date=payload.due_date,
+        current_phase=current_phase,
         description=payload.description,
         owner=payload.owner,
+        assignee=payload.assignee or "",
+        approver=payload.approver,
         key_stakeholder=payload.key_stakeholder,
+        blockers=payload.blockers,
+        risks=payload.risks,
+        completed_at=completed_at,
+        created_at=now,
+        updated_at=now,
         user_id=current_user.user_id,
     )
     session.add(solution)
@@ -116,9 +242,17 @@ def create_solution(
             "solution_name": (None, solution.solution_name),
             "version": (None, solution.version),
             "status": (None, solution.status),
+            "priority": (None, solution.priority),
+            "due_date": (None, solution.due_date),
+            "current_phase": (None, solution.current_phase),
             "description": (None, solution.description),
             "owner": (None, solution.owner),
+            "assignee": (None, solution.assignee),
+            "approver": (None, solution.approver),
             "key_stakeholder": (None, solution.key_stakeholder),
+            "blockers": (None, solution.blockers),
+            "risks": (None, solution.risks),
+            "completed_at": (None, solution.completed_at),
         },
     )
     session.commit()
@@ -131,12 +265,12 @@ def create_solution(
 
 @router.post("/solutions/import")
 def import_solutions(
-    file: UploadFile = File(...),
+    csv_bytes: bytes = Body(..., media_type="text/csv"),
     session: Session = Depends(get_db),
     tasks: BackgroundTasks = None,
     current_user: User = Depends(current_user_dep),
 ):
-    rows, errors = read_csv(file.file.read())
+    rows, errors = read_csv(csv_bytes)
     if errors:
         return {"created": 0, "updated": 0, "projects_created": 0, "errors": errors, "total_rows": 0}
     created = updated = projects_created = 0
@@ -154,6 +288,8 @@ def import_solutions(
         solution_name = normalize_str(row.get("solution_name"))
         version_raw = normalize_str(row.get("version")) or "0.1.0"
         owner = normalize_str(row.get("owner"))
+        assignee = normalize_str(row.get("assignee"))
+        approver = normalize_str(row.get("approver")) or None
         key_stakeholder = normalize_str(row.get("key_stakeholder"))
         if not project_name or not solution_name or not owner:
             errors.append(f"Row {idx}: project_name, solution_name, and owner are required")
@@ -169,10 +305,20 @@ def import_solutions(
             status_enum = normalize_status(
                 row.get("status") or SolutionStatus.not_started.value, SolutionStatus
             )
+            priority_val = parse_priority(row.get("priority"), default=3)
+            due_date_val = parse_date(row.get("due_date"))
         except ValueError as exc:
             errors.append(f"Row {idx}: {exc}")
             continue
         description = normalize_str(row.get("description")) or None
+        current_phase = normalize_str(row.get("current_phase")) or None
+        if current_phase:
+            phase_exists = session.query(Phase).filter(Phase.phase_id == current_phase).first()
+            if not phase_exists:
+                errors.append(f"Row {idx}: current_phase '{current_phase}' does not exist")
+                continue
+        blockers = normalize_str(row.get("blockers")) or None
+        risks = normalize_str(row.get("risks")) or None
 
         project = projects_by_name.get(project_name.lower())
         if not project:
@@ -217,17 +363,40 @@ def import_solutions(
         )
         try:
             if existing:
+                if current_phase:
+                    _validate_current_phase(session, existing.solution_id, current_phase)
+
                 before = {
                     "status": existing.status,
+                    "priority": existing.priority,
+                    "due_date": existing.due_date,
+                    "current_phase": existing.current_phase,
                     "description": existing.description,
                     "owner": existing.owner,
+                    "assignee": existing.assignee,
+                    "approver": existing.approver,
                     "key_stakeholder": existing.key_stakeholder,
+                    "blockers": existing.blockers,
+                    "risks": existing.risks,
+                    "completed_at": existing.completed_at,
                 }
+                now = datetime.now(timezone.utc)
                 existing.status = status_enum
+                existing.priority = priority_val
+                existing.due_date = due_date_val
+                existing.current_phase = current_phase
                 existing.description = description
                 existing.owner = owner
+                existing.assignee = assignee or ""
+                existing.approver = approver
                 existing.key_stakeholder = key_stakeholder or None
-                existing.updated_at = datetime.now(timezone.utc)
+                existing.blockers = blockers
+                existing.risks = risks
+                if status_enum == SolutionStatus.complete and not existing.completed_at:
+                    existing.completed_at = now
+                    if not existing.current_phase:
+                        existing.current_phase = _last_enabled_phase_id(session, existing.solution_id)
+                existing.updated_at = now
                 session.add(existing)
                 log_changes(
                     session,
@@ -237,23 +406,41 @@ def import_solutions(
                     action="update",
                     changes={
                         "status": (before["status"], existing.status),
+                        "priority": (before["priority"], existing.priority),
+                        "due_date": (before["due_date"], existing.due_date),
+                        "current_phase": (before["current_phase"], existing.current_phase),
                         "description": (before["description"], existing.description),
                         "owner": (before["owner"], existing.owner),
+                        "assignee": (before["assignee"], existing.assignee),
+                        "approver": (before["approver"], existing.approver),
                         "key_stakeholder": (before["key_stakeholder"], existing.key_stakeholder),
+                        "blockers": (before["blockers"], existing.blockers),
+                        "risks": (before["risks"], existing.risks),
+                        "completed_at": (before["completed_at"], existing.completed_at),
                     },
                     request_id=request_id,
                 )
                 updated += 1
                 session.commit()
             else:
+                now = datetime.now(timezone.utc)
+                completed_at = now if status_enum == SolutionStatus.complete else None
                 solution = Solution(
                     project_id=project.project_id,
                     solution_name=solution_name,
                     version=version_raw,
                     status=status_enum,
+                    priority=priority_val,
+                    due_date=due_date_val,
+                    current_phase=current_phase,
                     description=description,
                     owner=owner,
+                    assignee=assignee or "",
+                    approver=approver,
                     key_stakeholder=key_stakeholder or None,
+                    blockers=blockers,
+                    risks=risks,
+                    completed_at=completed_at,
                     user_id=current_user.user_id,
                 )
                 session.add(solution)
@@ -268,9 +455,17 @@ def import_solutions(
                         "solution_name": (None, solution.solution_name),
                         "version": (None, solution.version),
                         "status": (None, solution.status),
+                        "priority": (None, solution.priority),
+                        "due_date": (None, solution.due_date),
+                        "current_phase": (None, solution.current_phase),
                         "description": (None, solution.description),
                         "owner": (None, solution.owner),
+                        "assignee": (None, solution.assignee),
+                        "approver": (None, solution.approver),
                         "key_stakeholder": (None, solution.key_stakeholder),
+                        "blockers": (None, solution.blockers),
+                        "risks": (None, solution.risks),
+                        "completed_at": (None, solution.completed_at),
                     },
                     request_id=request_id,
                 )
@@ -297,7 +492,23 @@ def export_solutions(session: Session = Depends(get_db)):
         p.project_id: p.project_name for p in session.query(Project).filter(Project.deleted_at.is_(None))
     }
     buffer = StringIO()
-    fieldnames = ["project_name", "solution_name", "version", "status", "description", "owner", "key_stakeholder"]
+    fieldnames = [
+        "project_name",
+        "solution_name",
+        "version",
+        "status",
+        "priority",
+        "due_date",
+        "current_phase",
+        "description",
+        "owner",
+        "assignee",
+        "approver",
+        "key_stakeholder",
+        "blockers",
+        "risks",
+        "completed_at",
+    ]
     writer = csv.DictWriter(buffer, fieldnames=fieldnames)
     writer.writeheader()
     for s in solutions:
@@ -307,9 +518,17 @@ def export_solutions(session: Session = Depends(get_db)):
                 "solution_name": s.solution_name,
                 "version": s.version,
                 "status": s.status.value if hasattr(s.status, "value") else s.status,
+                "priority": s.priority,
+                "due_date": s.due_date.isoformat() if s.due_date else "",
+                "current_phase": s.current_phase or "",
                 "description": s.description or "",
                 "owner": s.owner or "",
+                "assignee": s.assignee or "",
+                "approver": s.approver or "",
                 "key_stakeholder": s.key_stakeholder or "",
+                "blockers": s.blockers or "",
+                "risks": s.risks or "",
+                "completed_at": s.completed_at.isoformat() if s.completed_at else "",
             }
         )
     buffer.seek(0)
@@ -334,10 +553,22 @@ def update_solution(
     solution = _get_solution_or_404(session, solution_id)
 
     update_data = payload.model_dump(exclude_unset=True)
+    if "priority" in update_data:
+        update_data["priority"] = parse_priority(update_data["priority"], default=3)
+    if "current_phase" in update_data:
+        update_data["current_phase"] = normalize_str(update_data["current_phase"]) or None
+        if update_data["current_phase"]:
+            _validate_current_phase(session, solution.solution_id, update_data["current_phase"])
+
     before = {field: getattr(solution, field) for field in update_data.keys()}
     for field, value in update_data.items():
         setattr(solution, field, value)
     solution.updated_at = datetime.now(timezone.utc)
+
+    if "status" in update_data and update_data["status"] == SolutionStatus.complete:
+        solution.completed_at = solution.completed_at or datetime.now(timezone.utc)
+        if not solution.current_phase:
+            solution.current_phase = _last_enabled_phase_id(session, solution.solution_id)
 
     if any(k in update_data for k in ("solution_name", "version")):
         conflict = (

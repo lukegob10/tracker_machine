@@ -3,7 +3,7 @@
 Base URL (dev): `http://127.0.0.1:8000`  
 API base path: `/api` (all routes below assume this prefix)  
 Docs: `/docs` (Swagger), `/redoc`  
-Auth: none (local/dev)  
+Auth: cookie-based (local users)  
 Content-Type: `application/json`  
 See `docs/data-model.md` for field definitions/constraints.
 
@@ -39,23 +39,41 @@ See `docs/data-model.md` for field definitions/constraints.
 - `PATCH /api/projects/{project_id}` (partial: status, name_abbreviation, project_name, description, sponsor)
 - `DELETE /api/projects/{project_id}` (soft delete)
 - Responses include `user_id` set by the server account/env.
-- Bulk CSV: `POST /api/projects/import` (fields: project_name, name_abbreviation, status, description, sponsor; strict-first duplicate detection), `GET /api/projects/export` (CSV download)
+- Bulk CSV: `POST /api/projects/import` with `Content-Type: text/csv` (body is raw CSV bytes; fields: project_name, name_abbreviation, status, description, sponsor; strict-first duplicate detection), `GET /api/projects/export` (CSV download)
 
-## Solutions (scoped to project)
-- `GET /api/projects/{project_id}/solutions?status=<not_started|active|on_hold|complete|abandoned>`
+## Solutions
+- `GET /api/solutions`
+  - Filters: `project_id`, `status=<not_started|active|on_hold|complete|abandoned>`, `owner`, `assignee`, `phase`, `priority`, `due_before=YYYY-MM-DD`, `due_after=YYYY-MM-DD`
+- `GET /api/projects/{project_id}/solutions` (same filters as above)
 - `POST /api/projects/{project_id}/solutions`
 ```json
-{ "solution_name": "Access Controls", "version": "0.2.0", "status": "active", "owner": "Solution Owner", "key_stakeholder": "Finance Ops", "description": "..." }
+{
+  "solution_name": "Access Controls",
+  "version": "0.2.0",
+  "status": "active",
+  "priority": 2,
+  "due_date": "2024-02-01",
+  "current_phase": "requirements",
+  "owner": "Solution Owner",
+  "assignee": "Engineer A",
+  "approver": "Risk Lead",
+  "key_stakeholder": "Finance Ops",
+  "description": "...",
+  "blockers": "...",
+  "risks": "..."
+}
 ```
 - `GET /api/solutions/{solution_id}`
-- `PATCH /api/solutions/{solution_id}` (partial: solution_name, version, status, description, owner, key_stakeholder)
+- `PATCH /api/solutions/{solution_id}` (partial: any Solution field)
+  - `priority` is clamped to 0–5
+  - `current_phase` must exist and be enabled for the solution (see Solution Phases below)
 - `DELETE /api/solutions/{solution_id}` (soft delete)
 - Responses include `user_id` set by the server account/env.
-- Bulk CSV: `POST /api/solutions/import` (fields: project_name, solution_name, version, status, description, owner (required), key_stakeholder; creates missing projects; strict-first duplicates), `GET /api/solutions/export` (CSV download)
+- Bulk CSV: `POST /api/solutions/import` with `Content-Type: text/csv` (body is raw CSV bytes; fields: project_name, solution_name, version, status, priority, due_date, current_phase, description, owner (required), assignee, approver, key_stakeholder, blockers, risks; creates missing projects; strict-first duplicates), `GET /api/solutions/export` (CSV download)
 
 ## Phases (global) and Solution Phases
 - `GET /api/phases` → ordered list `{ phase_id, phase_group, phase_name, sequence }`
-- `GET /api/solutions/{solution_id}/phases` → enabled phases for that solution (ordered by `sequence_override` if set, else `sequence`)
+- `GET /api/solutions/{solution_id}/phases` → phase configuration rows for that solution (includes disabled phases; ordered by `sequence_override` if set, else global `sequence`)
 - `POST /api/solutions/{solution_id}/phases` (upsert enable/disable + override)
 ```json
 { "phases": [
@@ -65,9 +83,10 @@ See `docs/data-model.md` for field definitions/constraints.
 ] }
 ```
 
-## Subcomponents (scoped to solution)
-- `GET /api/solutions/{solution_id}/subcomponents`
-  - Filters: `status=<to_do|in_progress|on_hold|complete|abandoned>`, `priority=<0-5>`, `sub_phase=<phase_id>`, `due_before=YYYY-MM-DD`, `due_after=YYYY-MM-DD`
+## Subcomponents (tasks)
+- `GET /api/subcomponents`
+  - Filters: `status=<to_do|in_progress|on_hold|complete|abandoned>`, `project_id`, `solution_id`, `priority=<0-5>`, `due_before=YYYY-MM-DD`, `due_after=YYYY-MM-DD`, `assignee`
+- `GET /api/solutions/{solution_id}/subcomponents` (same filters as above, plus `solution_id` implied)
 - `POST /api/solutions/{solution_id}/subcomponents`
 ```json
 {
@@ -75,35 +94,20 @@ See `docs/data-model.md` for field definitions/constraints.
   "status": "in_progress",
   "priority": 1,
   "due_date": "2024-02-01",
-  "sub_phase": "requirements",
-  "description": "Document role matrix",
-  "notes": "Align with security",
-  "owner": "Subcomponent Owner",
-  "assignee": "Engineer A",
-  "approver": "Risk Lead"
+  "assignee": "Engineer A"
 }
 ```
 - `GET /api/subcomponents/{subcomponent_id}`
-- `PATCH /api/subcomponents/{subcomponent_id}` (partial: name, status, priority, due_date, sub_phase, description, notes, category, dependencies, work_estimate, owner, assignee, approver)
+- `PATCH /api/subcomponents/{subcomponent_id}` (partial: subcomponent_name, status, priority, due_date, assignee)
 - `DELETE /api/subcomponents/{subcomponent_id}` (soft delete)
-- Rules: `sub_phase` must be among enabled phases for the solution; name unique per solution; `priority` 0–5.
+- Rules: name unique per solution; `priority` 0–5.
 - Responses include `user_id` set by the server account/env.
-- Bulk CSV: `POST /api/subcomponents/import` (fields: project_name, solution_name, version (optional, defaults to 0.1.0), subcomponent_name, status, priority, due_date, sub_phase, description, notes, category, dependencies, work_estimate, owner (required), assignee (required), approver; creates missing projects/solutions; strict-first duplicates), `GET /api/subcomponents/export` (CSV download)
-
-## Checklist (subcomponent phase completion)
-- `GET /api/subcomponents/{subcomponent_id}/phases` → syncs rows to enabled phases, returns `{ solution_phase_id, phase_id, is_complete, completed_at }`
-- `POST /api/subcomponents/{subcomponent_id}/phases/bulk`
-```json
-{ "updates": [
-  { "solution_phase_id": "uuid-phase-1", "is_complete": true },
-  { "solution_phase_id": "uuid-phase-2", "is_complete": false }
-] }
-```
-- If a phase is disabled later, its checklist rows are removed on sync.
+- Bulk CSV: `POST /api/subcomponents/import` with `Content-Type: text/csv` (body is raw CSV bytes; fields: project_name, solution_name, version (optional, defaults to 0.1.0), subcomponent_name, status, priority, due_date, assignee (required), solution_owner (optional; used only when auto-creating a missing solution); strict-first duplicates), `GET /api/subcomponents/export` (CSV download)
 
 ## Status defaults
 - Project status: `not_started` if omitted.
 - Solution status: `not_started` if omitted.
+- Solution: `priority=3` if omitted.
 - Subcomponent: `status=to_do`, `priority=3` if omitted.
 - Abbreviation must be 4 chars.
 

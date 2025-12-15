@@ -11,7 +11,7 @@
 - Status pills or alerts show load errors; try reloading if needed.
 
 ## Filters & Search
-- Master List filters: Status, Project, Solution, Subphase, Priority ≤, Owner, Assignee, text search. Filters update instantly.
+- Master List filters: Status, Project, Current Phase, Priority ≤, Owner, Assignee, text search. Filters update instantly.
 - Other views have entity-specific filters (e.g., tables can be sorted/filtered via headers/controls where shown).
 
 ## Projects
@@ -22,35 +22,36 @@
 - Table shows Project, Abbrev, Sponsor, Status.
 
 ## Solutions
-- Form: Project (select), Solution name, Version, Status, Description, Owner (required), Key Stakeholder (optional).
+- Form: Project (select), Solution name, Version, Status, Priority, Due Date, Current Phase, Owner (required), Assignee/Approver (optional), Key Stakeholder (optional), Description, Blockers/Risks/Next Decision.
 - Create: select a Project, fill fields, Save.
 - Edit: click a row to load, edit, Save.
-- Phases: use the phase checklist under the table to enable/disable phases per solution.
+- Phases: use the phase checklist under the table to enable/disable phases per solution (this controls which phases can be selected as Current Phase).
 - CSV: Download/Upload available.
-- Table shows Solution, Project, Version, Owner, Key Stakeholder, Status.
+- Table shows Solution, Project, Version, Owner, Assignee, Phase, Due, Status.
 
 ## Subcomponents
-- Form: Project, Solution, Subphase (enabled phases), Priority (0–5), Due Date, Status, Owner (required), Assignee (required), Approver (optional), Name, Description, Notes.
+- Subcomponents are optional task rows under a Solution.
+- Form: Project, Solution, Task name, Priority (0–5), Due Date, Status, Assignee (required).
 - Create: select Project + Solution, fill required fields, Save.
 - Edit: click a row to load, edit, Save.
 - CSV: Download/Upload available.
-- Table shows Component, Project, Solution, Owner, Assignee, Status, Priority.
+- Table shows Task, Project, Solution, Assignee, Status, Priority, Due.
 
 ## Master List
-- Unified table across all subcomponents with project/solution context.
-- Columns include Project, Sponsor, Solution, Solution Owner, Subcomponent, Owner, Assignee, Subphase, Priority, Due, Status, Progress.
-- Use filters to answer “who owns this?” or narrow by phase/priority/dates.
+- Unified table across all solutions with project context.
+- Columns include Project, Sponsor, Solution, Version, Owner, Assignee, Current Phase, Priority, Due, Status, Progress.
+- Use filters to answer “who owns this?” or narrow by phase/priority.
 
 ## Kanban (Swimlanes)
-- Groups subcomponents by project → solution, then shows cards by phase group.
-- Each card shows name, project/solution, owner/assignee, priority/status, due date. Empty columns show “Empty.”
+- Groups solutions by project, then shows cards by phase group (derived from Current Phase).
+- Each card shows solution name/version, owner/assignee, priority, phase, due date, and status. Empty columns show “Empty.”
 
 ## Calendar
-- Groups subcomponents by due date.
-- Entries show subcomponent name, status, Owner, Assignee.
+- Groups solutions by due date.
+- Entries show solution name, status, Owner, Assignee.
 
 ## Dashboard
-- Summary cards: counts (projects, solutions, subcomponents), overdue, in-progress, complete, on hold, no due date, avg priority.
+- Summary cards: counts (projects, solutions, subcomponents), overdue, active, complete, on hold, no due date, avg priority.
 - Summaries for projects/solutions and “attention”/“upcoming” panels.
 
 ## CSV Import/Export
@@ -64,6 +65,5 @@
 
 ## Troubleshooting
 - 401/unauthenticated: log in again; ensure cookies are allowed for the app host.
-- Validation errors: check required fields (Sponsor on projects; Owner on solutions; Owner/Assignee on subcomponents; abbreviation = 4 chars; priority 0–5).
-- No phases: enable phases for a solution in the Solutions view before selecting a subphase on subcomponents.
+- Validation errors: check required fields (Sponsor on projects; Owner on solutions; Assignee on subcomponents; abbreviation = 4 chars; priority 0–5).
 - CSV errors: check header names and required fields as shown in each view’s description.

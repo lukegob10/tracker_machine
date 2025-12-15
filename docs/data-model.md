@@ -6,8 +6,8 @@ User attribution: `user_id` is populated from the authenticated user; legacy env
 
 ## Entities at a Glance
 - Project: top-level container with name, 4-char abbreviation, status, description, and a required Sponsor; stores `project_id`, `user_id`, timestamps, and soft delete metadata but those fields are not surfaced in the UI.
-- Solution: versioned deliverable that belongs to a project; carries required Solution Owner (R+A) and optional Key Stakeholder (Consulted); can enable/disable phases to fit its workflow; stores `solution_id`, `user_id`, timestamps, and soft delete metadata.
-- Subcomponent: granular work item belonging to a project + solution; prioritized with status, priority, due date, and a `sub_phase` (phase slug) that drives progress; also captures Owner (accountable), Assignee (executing), and optional Approver (gate); optional per-phase checklist for UX; stores `subcomponent_id`, `user_id`, timestamps, and soft delete metadata.
+- Solution: versioned deliverable that belongs to a project and is the primary trackable work item; carries Owner/Assignee, priority, optional due date, optional current phase, and optional blockers/risks; can enable/disable phases to fit its workflow; stores `solution_id`, `user_id`, timestamps, and soft delete metadata.
+- Subcomponent: optional task belonging to a project + solution; minimal fields (name, status, priority, due date, assignee). Subcomponents do **not** carry phases/progress.
 
 ## Table Definitions (simplified)
 
@@ -40,37 +40,45 @@ Indexes
 - Index: `status`
 
 ### solutions
-| Field          | Type     | Description                 |
-| -------------- | -------- | --------------------------- |
-| solution_id    | TEXT     | UUID                        |
-| solution_name  | TEXT     | Name within project         |
-| project_id     | TEXT     | FK to project               |
-| version        | TEXT     | Version string (e.g., 0.1.0)|
-| status         | TEXT     | Solution lifecycle status   |
-| description    | TEXT     | Summary/notes               |
-| owner          | TEXT     | Solution Owner (R + A, required) |
-| key_stakeholder| TEXT     | Consulted stakeholder (optional) |
-| user_id        | TEXT     | Owner/user reference        |
-| created_at     | DATETIME | Created timestamp           |
-| updated_at     | DATETIME | Last updated timestamp      |
-| deleted_at     | DATETIME | Soft delete timestamp       |
+| Field             | Type     | Description                 |
+| ----------------- | -------- | --------------------------- |
+| solution_id       | TEXT     | UUID                        |
+| solution_name     | TEXT     | Name within project         |
+| project_id        | TEXT     | FK to project               |
+| version           | TEXT     | Version string (e.g., 0.1.0)|
+| status            | TEXT     | Solution lifecycle status   |
+| priority          | INTEGER  | 0–5 priority (0 = highest)  |
+| due_date          | DATE     | Optional target date (YYYY-MM-DD) |
+| current_phase     | TEXT     | Optional phase slug (FK-like to `phases.phase_id`) |
+| description       | TEXT     | Summary/notes               |
+| owner             | TEXT     | Solution Owner (R + A, required) |
+| assignee          | TEXT     | Executor (optional)         |
+| approver          | TEXT     | Gate/approver (optional)    |
+| key_stakeholder   | TEXT     | Consulted stakeholder (optional) |
+| blockers          | TEXT     | Blockers (optional)         |
+| risks             | TEXT     | Risks (optional)            |
+| completed_at      | DATETIME | When marked complete        |
+| user_id           | TEXT     | Owner/user reference        |
+| created_at        | DATETIME | Created timestamp           |
+| updated_at        | DATETIME | Last updated timestamp      |
+| deleted_at        | DATETIME | Soft delete timestamp       |
 
 Allowed values
 - status: `not_started`, `active`, `on_hold`, `complete`, `abandoned`
 
 Validation & Defaults
-- Required: `project_id`, `solution_name`, `version`, `status`, `owner`; `description` optional; `key_stakeholder` optional.
-- Defaults: `status` defaults to `not_started`; `owner` required in UI/CSV; `key_stakeholder` may be null/blank.
+- Required: `project_id`, `solution_name`, `version`, `status`, `owner`; most other fields optional.
+- Defaults: `status` defaults to `not_started`; `priority` defaults to 3; `due_date` and `current_phase` default to null.
 - Uniqueness: `(project_id, solution_name, version)` must be unique among non-deleted rows.
 
 Indexes
 - Unique: `(project_id, solution_name, version)`
-- Index: `(project_id, status)`
+- Index: `(project_id, status)`, `(status)`, `(priority)`, `(due_date)`, `(current_phase)`, `(owner)`, `(assignee)`
 
 ### phases (lookup)
 | Field       | Type     | Description                        |
 | ----------- | -------- | ---------------------------------- |
-| phase_id    | TEXT     | Slug/UUID used as `sub_phase` value|
+| phase_id    | TEXT     | Slug/UUID used as `current_phase` value |
 | phase_group | TEXT     | High-level bucket (e.g., Planning) |
 | phase_name  | TEXT     | Specific phase label               |
 | sequence    | INTEGER  | Ordering for progress calculations |
@@ -104,34 +112,12 @@ Validation & Defaults
 - Required: `solution_id`, `phase_id`; both must exist.
 - Defaults: `is_enabled` defaults to 1; `sequence_override` optional (null).
 - `sequence_override` must be a positive integer when provided.
-- Disabling a phase should also remove/update related checklist rows.
+- Disabling a phase should also clear `solutions.current_phase` if it is set to a now-disabled phase.
 
 Best-practice rollup (simple):
 - `phases` holds the canonical ordered list.
 - `solution_phases` turns phases on/off per solution and can override order.
-- `subcomponent_phase_status` creates one row per enabled phase per subcomponent to show/check completion; `sub_phase` on `subcomponents` marks the current active phase and drives progress.
-
-### subcomponent_phase_status (per-subcomponent phase checklist)
-| Field                 | Type     | Description                                      |
-| --------------------- | -------- | ------------------------------------------------ |
-| subcomponent_phase_id | TEXT     | UUID                                             |
-| subcomponent_id       | TEXT     | FK to subcomponents                              |
-| solution_phase_id     | TEXT     | FK to solution_phases (enabled phase for solution)|
-| phase_id              | TEXT     | FK to phases (denormalized for easier joins)     |
-| is_complete           | INTEGER  | 0/1 flag; checked when phase is done             |
-| completed_at          | DATETIME | When the phase was checked complete              |
-| created_at            | DATETIME | Created timestamp                                |
-| updated_at            | DATETIME | Last updated timestamp                           |
-
-Indexes
-- Unique: `(subcomponent_id, solution_phase_id)`
-- Index: `(subcomponent_id, is_complete)`
-- Index: `(subcomponent_id, phase_id)`
-
-Validation & Defaults
-- Required: `subcomponent_id`, `solution_phase_id`; both must exist.
-- Defaults: `is_complete` defaults to 0; `completed_at` required only when `is_complete = 1`.
-- Keep rows in sync when phases are enabled/disabled or when `sub_phase` changes.
+- `solutions.current_phase` represents “where we are” and drives progress; subcomponents are tasks and do not carry phases.
 
 ### subcomponents
 | Field             | Type     | Description                     |
@@ -143,15 +129,7 @@ Validation & Defaults
 | status            | TEXT     | Subcomponent lifecycle status   |
 | priority          | INTEGER  | 0-5 priority (0 = highest)      |
 | due_date          | DATE     | Target date (YYYY-MM-DD)        |
-| sub_phase         | TEXT     | Phase slug (FK to phases.phase_id) for current/active phase |
-| description       | TEXT     | Summary                         |
-| notes             | TEXT     | Freeform notes                  |
-| category          | TEXT     | Optional category               |
-| dependencies      | TEXT     | Related subcomponent IDs/list   |
-| work_estimate     | REAL     | Estimate (hours/points)         |
-| owner             | TEXT     | Accountable owner (required)    |
 | assignee          | TEXT     | Executing individual (required) |
-| approver          | TEXT     | Gate/approver (optional)        |
 | created_at        | DATETIME | Created timestamp               |
 | updated_at        | DATETIME | Last updated timestamp          |
 | completed_at      | DATETIME | When marked complete            |
@@ -161,34 +139,25 @@ Validation & Defaults
 Allowed values
 - status: `to_do`, `in_progress`, `on_hold`, `complete`, `abandoned`
 - priority: `0` (highest) to `5` (lowest)
-- sub_phase: slug from `phases.phase_id` (ordered by `sequence`; solutions can enable/disable via `solution_phases`)
-  - Backlog: Backlog
-  - Planning: Requirements, Controls & Scoping; Resourcing & Timeline; Proof of Concept; Delivery and Success Criteria
-  - Development: Design, Build & Documentation; Sandbox Deployment; Socialization & Signoff
-  - Deployment & Testing: Deployment Preparation; DEV Deployment; UAT Deployment; PROD Deployment
-  - Closure: Go Live; Closure and Signoff; Handoff and offboarding
-- Checklist: one `subcomponent_phase_status` row per enabled `solution_phase` to show phases and check off completion; keep the checked phase at or before the current `sub_phase`.
 
 Validation & Defaults
-- Required: `project_id`, `solution_id`, `subcomponent_name`, `status`, `owner`, `assignee`; `description` optional.
-- Defaults: `status` defaults to `to_do`; `priority` defaults to 3 (mid); `owner`/`assignee` required in UI/CSV; `sub_phase` null when no phases are enabled.
-- Constraints: `priority` must be between 0 and 5 inclusive; `sub_phase` must be one of the enabled phases for the solution when set.
-- Progress state: if `status = complete`, set `completed_at` and `sub_phase` to the last enabled phase; reject `sub_phase` when no phases are enabled.
+- Required: `project_id`, `solution_id`, `subcomponent_name`, `status`, `assignee`.
+- Defaults: `status` defaults to `to_do`; `priority` defaults to 3 (mid); `due_date` optional.
+- Constraints: `priority` must be between 0 and 5 inclusive.
 - Uniqueness: `(solution_id, subcomponent_name)` must be unique among non-deleted rows.
 - Soft delete: `deleted_at` set instead of hard delete; default queries exclude soft-deleted rows.
 
 Indexes
 - Index: `(solution_id, status)`
-- Index: `(solution_id, sub_phase)`
 - Index: `(due_date)`
 - Index: `(priority)`
 - Unique: `(solution_id, subcomponent_name)`
 
 ## Progress Logic
-- If `status = 'complete'`, progress = 100%.
-- Otherwise, derive enabled phases for the solution (`solution_phases.is_enabled = 1` ordered by `sequence_override` when set, else `phases.sequence`). If no phases are enabled, progress = 0 and `sub_phase` should be null.
-- Progress when phases exist: `progress = ((position_of(sub_phase) + 1) / enabled_phase_count) * 100`; if `sub_phase` is null, progress = 0.
-- `subcomponent_phase_status` powers the checklist UI; keep rows in sync with enabled phases and `sub_phase` (phases at or before `sub_phase` can be checked).
+- If `solution.status = 'complete'`, progress = 100%.
+- Otherwise, derive enabled phases for the solution (`solution_phases.is_enabled = 1` ordered by `sequence_override` when set, else `phases.sequence`). If no phases are enabled, progress = 0 and `solution.current_phase` must be null.
+- Progress when phases exist: `progress = ((position_of(current_phase) + 1) / enabled_phase_count) * 100`; if `current_phase` is null, progress = 0.
+- Subcomponents do not contribute to phase/progress; they are tasks under the solution.
 
 ## Seed Data (optional)
 - One sample project with abbreviation and active status.
@@ -196,9 +165,8 @@ Indexes
 - A few subcomponents spanning statuses and priorities to validate UI and filtering.
 
 ## Potential Enhancements
-- Cached progress: optional numeric `progress` column on subcomponents (derived from enabled `sub_phase` ordering) to speed board queries; recompute on phase/status change.
-- Assignees: add `assignee_id` (user ref) on subcomponents to support ownership and filtering.
-- Comments: add a `comments` table keyed to subcomponents for discussion history.
+- Cached progress: optional numeric `progress` column on solutions (derived from enabled `current_phase` ordering) to speed board queries; recompute on phase/status change.
+- Comments: add a `comments` table keyed to solutions and/or subcomponents for discussion history.
 
 ## Notes
 - `updated_at` should be set via triggers or application logic on updates.

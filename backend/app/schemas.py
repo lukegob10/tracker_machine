@@ -1,7 +1,7 @@
 from datetime import datetime, date
 from typing import Optional
 
-from pydantic import BaseModel, ConfigDict, constr, EmailStr
+from pydantic import BaseModel, ConfigDict, constr
 
 from .enums import ProjectStatus, SolutionStatus, SubcomponentStatus
 
@@ -25,7 +25,7 @@ class UserRead(BaseModel):
 
     user_id: str
     soeid: str
-    email: EmailStr
+    email: str
     display_name: str
     role: str
     is_active: bool
@@ -86,15 +86,23 @@ class SolutionBase(BaseModel):
     solution_name: Optional[str] = None
     version: Optional[str] = None
     status: Optional[SolutionStatus] = None
+    priority: Optional[int] = None
+    due_date: Optional[date] = None
+    current_phase: Optional[str] = None
     description: Optional[str] = None
     owner: Optional[str] = None
+    assignee: Optional[str] = None
+    approver: Optional[str] = None
     key_stakeholder: Optional[str] = None
+    blockers: Optional[str] = None
+    risks: Optional[str] = None
 
 
 class SolutionCreate(SolutionBase):
     solution_name: str
     version: str
     status: SolutionStatus = SolutionStatus.not_started
+    priority: int = 3
     owner: str
 
 
@@ -110,9 +118,17 @@ class SolutionRead(BaseModel):
     solution_name: str
     version: str
     status: SolutionStatus
+    priority: int
+    due_date: Optional[date] = None
+    current_phase: Optional[str] = None
     description: Optional[str] = None
     owner: Optional[str] = None
+    assignee: Optional[str] = None
+    approver: Optional[str] = None
     key_stakeholder: Optional[str] = None
+    blockers: Optional[str] = None
+    risks: Optional[str] = None
+    completed_at: Optional[datetime] = None
     user_id: Optional[str] = None
     created_at: datetime
     updated_at: datetime
@@ -152,22 +168,13 @@ class SubcomponentBase(BaseModel):
     status: Optional[SubcomponentStatus] = None
     priority: Optional[int] = None
     due_date: Optional[date] = None
-    sub_phase: Optional[str] = None
-    description: Optional[str] = None
-    notes: Optional[str] = None
-    category: Optional[str] = None
-    dependencies: Optional[str] = None
-    work_estimate: Optional[float] = None
-    owner: Optional[str] = None
     assignee: Optional[str] = None
-    approver: Optional[str] = None
 
 
 class SubcomponentCreate(SubcomponentBase):
     subcomponent_name: str
     status: SubcomponentStatus = SubcomponentStatus.to_do
     priority: int = 3
-    owner: str
     assignee: str
 
 
@@ -185,34 +192,8 @@ class SubcomponentRead(BaseModel):
     status: SubcomponentStatus
     priority: int
     due_date: Optional[date] = None
-    sub_phase: Optional[str] = None
-    description: Optional[str] = None
-    notes: Optional[str] = None
-    category: Optional[str] = None
-    dependencies: Optional[str] = None
-    work_estimate: Optional[float] = None
-    owner: Optional[str] = None
     assignee: Optional[str] = None
-    approver: Optional[str] = None
     user_id: Optional[str] = None
     completed_at: Optional[datetime] = None
     created_at: datetime
     updated_at: datetime
-
-
-class SubcomponentPhaseRead(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
-    subcomponent_phase_id: str
-    subcomponent_id: str
-    solution_phase_id: str
-    phase_id: str
-    is_complete: bool
-    completed_at: Optional[datetime] = None
-    created_at: datetime
-    updated_at: datetime
-
-
-class SubcomponentPhaseUpdate(BaseModel):
-    solution_phase_id: str
-    is_complete: bool

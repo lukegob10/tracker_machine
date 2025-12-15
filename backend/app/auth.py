@@ -1,10 +1,11 @@
 import os
+import hashlib
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict
 
+import bcrypt
 import jwt
 from fastapi import HTTPException, Response, status
-from passlib.context import CryptContext
 
 SECRET_KEY = os.getenv("JIRA_LITE_SECRET_KEY", "dev-secret-change-me")
 ALGORITHM = "HS256"
@@ -13,15 +14,33 @@ REFRESH_TOKEN_EXPIRE_DAYS = int(os.getenv("JIRA_LITE_REFRESH_DAYS", "7"))
 SECURE_COOKIES = os.getenv("JIRA_LITE_SECURE_COOKIES", "false").lower() == "true"
 COOKIE_SAMESITE = os.getenv("JIRA_LITE_COOKIE_SAMESITE", "lax").lower()
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+BCRYPT_ROUNDS = int(os.getenv("JIRA_LITE_BCRYPT_ROUNDS", "12"))
+
+
+def _password_bytes_for_bcrypt(password: str) -> bytes:
+    """
+    bcrypt only uses the first 72 bytes of the password.
+
+    To avoid silent truncation, pre-hash with SHA-256 when the UTF-8 byte length exceeds 72.
+    """
+    raw = password.encode("utf-8")
+    if len(raw) > 72:
+        return hashlib.sha256(raw).digest()
+    return raw
 
 
 def hash_password(password: str) -> str:
-    return pwd_context.hash(password)
+    password_bytes = _password_bytes_for_bcrypt(password)
+    hashed = bcrypt.hashpw(password_bytes, bcrypt.gensalt(rounds=BCRYPT_ROUNDS))
+    return hashed.decode("utf-8")
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    return pwd_context.verify(plain_password, hashed_password)
+    password_bytes = _password_bytes_for_bcrypt(plain_password)
+    try:
+        return bcrypt.checkpw(password_bytes, hashed_password.encode("utf-8"))
+    except ValueError:
+        return False
 
 
 def _expiry(delta: timedelta) -> datetime:
