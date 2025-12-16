@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 
 from .deps import get_db, current_user as current_user_dep
-from .enums import ProjectStatus, SolutionStatus
+from .enums import ProjectStatus, RagSource, RagStatus, SolutionStatus
 from .models import Phase, Project, Solution, SolutionPhase, User
 from .schemas import SolutionCreate, SolutionRead, SolutionUpdate
 from .utils import (
@@ -26,6 +26,36 @@ from .realtime import schedule_broadcast
 from .audit_log import log_changes
 
 router = APIRouter()
+
+
+def _compute_auto_rag(status: SolutionStatus, due_date: Optional[date]) -> RagStatus:
+    if status == SolutionStatus.complete:
+        return RagStatus.green
+    if status == SolutionStatus.abandoned:
+        return RagStatus.red
+    if due_date and due_date < date.today():
+        return RagStatus.red
+    return RagStatus.amber
+
+
+def _parse_rag_source(raw: Optional[str]) -> Optional[RagSource]:
+    value = normalize_str(raw).lower()
+    if not value:
+        return None
+    for candidate in RagSource:
+        if candidate.value == value:
+            return candidate
+    raise ValueError(f"invalid rag_source '{raw}', expected one of: auto, manual")
+
+
+def _parse_rag_status(raw: Optional[str]) -> Optional[RagStatus]:
+    value = normalize_str(raw).lower()
+    if not value:
+        return None
+    for candidate in RagStatus:
+        if candidate.value == value:
+            return candidate
+    raise ValueError(f"invalid rag_status '{raw}', expected one of: red, amber, green")
 
 
 def _ensure_project_exists(session: Session, project_id: str) -> None:
@@ -210,11 +240,33 @@ def create_solution(
     completed_at = now if payload.status == SolutionStatus.complete else None
     priority_val = parse_priority(payload.priority, default=3)
 
+    rag_source = payload.rag_source or RagSource.auto
+    rag_reason = normalize_str(payload.rag_reason) or None
+    rag_status = payload.rag_status
+    if rag_source == RagSource.manual:
+        if rag_status is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="rag_status is required when rag_source is manual",
+            )
+        if not rag_reason:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="rag_reason is required when rag_source is manual",
+            )
+    else:
+        rag_source = RagSource.auto
+        rag_status = _compute_auto_rag(payload.status, payload.due_date)
+        rag_reason = None
+
     solution = Solution(
         project_id=project_id,
         solution_name=payload.solution_name,
         version=payload.version,
         status=payload.status,
+        rag_status=rag_status,
+        rag_source=rag_source,
+        rag_reason=rag_reason,
         priority=priority_val,
         due_date=payload.due_date,
         current_phase=current_phase,
@@ -243,6 +295,9 @@ def create_solution(
             "solution_name": (None, solution.solution_name),
             "version": (None, solution.version),
             "status": (None, solution.status),
+            "rag_status": (None, solution.rag_status),
+            "rag_source": (None, solution.rag_source),
+            "rag_reason": (None, solution.rag_reason),
             "priority": (None, solution.priority),
             "due_date": (None, solution.due_date),
             "current_phase": (None, solution.current_phase),
@@ -309,11 +364,14 @@ def import_solutions(
             )
             priority_val = parse_priority(row.get("priority"), default=3)
             due_date_val = parse_date(row.get("due_date"))
+            rag_source_raw = _parse_rag_source(row.get("rag_source"))
+            rag_status_raw = _parse_rag_status(row.get("rag_status"))
         except ValueError as exc:
             errors.append(f"Row {idx}: {exc}")
             continue
         description = normalize_str(row.get("description")) or None
         success_criteria = normalize_str(row.get("success_criteria")) or None
+        rag_reason_raw = normalize_str(row.get("rag_reason")) or None
         current_phase = normalize_str(row.get("current_phase")) or None
         if current_phase:
             phase_exists = session.query(Phase).filter(Phase.phase_id == current_phase).first()
@@ -322,6 +380,23 @@ def import_solutions(
                 continue
         blockers = normalize_str(row.get("blockers")) or None
         risks = normalize_str(row.get("risks")) or None
+
+        rag_source_val = rag_source_raw
+        if rag_source_val is None and (rag_status_raw is not None or rag_reason_raw):
+            rag_source_val = RagSource.manual
+        rag_source_val = rag_source_val or RagSource.auto
+        if rag_source_val == RagSource.manual:
+            if rag_status_raw is None:
+                errors.append(f"Row {idx}: rag_status is required when rag_source is manual")
+                continue
+            if not rag_reason_raw:
+                errors.append(f"Row {idx}: rag_reason is required when rag_source is manual")
+                continue
+            rag_status_val = rag_status_raw
+            rag_reason_val = rag_reason_raw
+        else:
+            rag_status_val = _compute_auto_rag(status_enum, due_date_val)
+            rag_reason_val = None
 
         project = projects_by_name.get(project_name.lower())
         if not project:
@@ -372,6 +447,9 @@ def import_solutions(
 
                 before = {
                     "status": existing.status,
+                    "rag_status": existing.rag_status,
+                    "rag_source": existing.rag_source,
+                    "rag_reason": existing.rag_reason,
                     "priority": existing.priority,
                     "due_date": existing.due_date,
                     "current_phase": existing.current_phase,
@@ -387,6 +465,9 @@ def import_solutions(
                 }
                 now = datetime.now(timezone.utc)
                 existing.status = status_enum
+                existing.rag_source = rag_source_val
+                existing.rag_status = rag_status_val
+                existing.rag_reason = rag_reason_val
                 existing.priority = priority_val
                 existing.due_date = due_date_val
                 existing.current_phase = current_phase
@@ -412,6 +493,9 @@ def import_solutions(
                     action="update",
                     changes={
                         "status": (before["status"], existing.status),
+                        "rag_status": (before["rag_status"], existing.rag_status),
+                        "rag_source": (before["rag_source"], existing.rag_source),
+                        "rag_reason": (before["rag_reason"], existing.rag_reason),
                         "priority": (before["priority"], existing.priority),
                         "due_date": (before["due_date"], existing.due_date),
                         "current_phase": (before["current_phase"], existing.current_phase),
@@ -437,6 +521,9 @@ def import_solutions(
                     solution_name=solution_name,
                     version=version_raw,
                     status=status_enum,
+                    rag_status=rag_status_val,
+                    rag_source=rag_source_val,
+                    rag_reason=rag_reason_val,
                     priority=priority_val,
                     due_date=due_date_val,
                     current_phase=current_phase,
@@ -463,6 +550,9 @@ def import_solutions(
                         "solution_name": (None, solution.solution_name),
                         "version": (None, solution.version),
                         "status": (None, solution.status),
+                        "rag_status": (None, solution.rag_status),
+                        "rag_source": (None, solution.rag_source),
+                        "rag_reason": (None, solution.rag_reason),
                         "priority": (None, solution.priority),
                         "due_date": (None, solution.due_date),
                         "current_phase": (None, solution.current_phase),
@@ -506,6 +596,9 @@ def export_solutions(session: Session = Depends(get_db)):
         "solution_name",
         "version",
         "status",
+        "rag_status",
+        "rag_source",
+        "rag_reason",
         "priority",
         "due_date",
         "current_phase",
@@ -528,6 +621,9 @@ def export_solutions(session: Session = Depends(get_db)):
                 "solution_name": s.solution_name,
                 "version": s.version,
                 "status": s.status.value if hasattr(s.status, "value") else s.status,
+                "rag_status": s.rag_status.value if hasattr(s.rag_status, "value") else s.rag_status,
+                "rag_source": s.rag_source.value if hasattr(s.rag_source, "value") else s.rag_source,
+                "rag_reason": s.rag_reason or "",
                 "priority": s.priority,
                 "due_date": s.due_date.isoformat() if s.due_date else "",
                 "current_phase": s.current_phase or "",
@@ -564,6 +660,7 @@ def update_solution(
     solution = _get_solution_or_404(session, solution_id)
 
     update_data = payload.model_dump(exclude_unset=True)
+    rag_updates = {k: update_data.pop(k) for k in list(update_data.keys()) if k in {"rag_status", "rag_source", "rag_reason"}}
     if "priority" in update_data:
         update_data["priority"] = parse_priority(update_data["priority"], default=3)
     if "current_phase" in update_data:
@@ -571,7 +668,8 @@ def update_solution(
         if update_data["current_phase"]:
             _validate_current_phase(session, solution.solution_id, update_data["current_phase"])
 
-    before = {field: getattr(solution, field) for field in update_data.keys()}
+    fields_to_compare = set(update_data.keys()) | {"rag_status", "rag_source", "rag_reason"}
+    before = {field: getattr(solution, field) for field in fields_to_compare}
     for field, value in update_data.items():
         setattr(solution, field, value)
     solution.updated_at = datetime.now(timezone.utc)
@@ -580,6 +678,37 @@ def update_solution(
         solution.completed_at = solution.completed_at or datetime.now(timezone.utc)
         if not solution.current_phase:
             solution.current_phase = _last_enabled_phase_id(session, solution.solution_id)
+
+    rag_source_req = rag_updates.get("rag_source")
+    rag_status_req = rag_updates.get("rag_status")
+    rag_reason_req = rag_updates.get("rag_reason")
+    if rag_source_req is None and (rag_status_req is not None or rag_reason_req is not None):
+        rag_source_req = RagSource.manual
+
+    if rag_source_req == RagSource.manual:
+        rag_status_val = rag_status_req or (solution.rag_status if solution.rag_source == RagSource.manual else None)
+        rag_reason_val = normalize_str(rag_reason_req) if rag_reason_req is not None else (solution.rag_reason or "")
+        if rag_status_val is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="rag_status is required when rag_source is manual",
+            )
+        rag_reason_val = rag_reason_val.strip()
+        if not rag_reason_val:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="rag_reason is required when rag_source is manual",
+            )
+        solution.rag_source = RagSource.manual
+        solution.rag_status = rag_status_val
+        solution.rag_reason = rag_reason_val
+    elif rag_source_req == RagSource.auto:
+        solution.rag_source = RagSource.auto
+        solution.rag_status = _compute_auto_rag(solution.status, solution.due_date)
+        solution.rag_reason = None
+    elif solution.rag_source == RagSource.auto:
+        solution.rag_status = _compute_auto_rag(solution.status, solution.due_date)
+        solution.rag_reason = None
 
     if any(k in update_data for k in ("solution_name", "version")):
         conflict = (
@@ -597,14 +726,15 @@ def update_solution(
             )
 
     session.add(solution)
-    if update_data:
+    changes = {field: (before.get(field), getattr(solution, field)) for field in fields_to_compare}
+    if changes:
         log_changes(
             session,
             entity_type="solution",
             entity_id=solution.solution_id,
             user_id=current_user.user_id,
             action="update",
-            changes={field: (before.get(field), getattr(solution, field)) for field in update_data.keys()},
+            changes=changes,
         )
     session.commit()
     session.refresh(solution)

@@ -1,12 +1,12 @@
 # Data Model
 
-SQLite schema for Jira-lite with projects, solutions, and subcomponents. All timestamps stored as ISO8601 in UTC. Foreign keys are enforced (`PRAGMA foreign_keys = ON`). Pair this reference with `docs/api-documentation.md` for routes/payloads and `docs/ui-overview.md` for how the UI exercises these fields.
+SQLite schema for Jira-lite with projects, solutions, and subcomponents. All timestamps stored as ISO8601 in UTC. Foreign keys are enforced (`PRAGMA foreign_keys = ON`). Pair this reference with `docs/system/api-documentation.md` for routes/payloads and `docs/system/ui-overview.md` for how the UI exercises these fields.
 
 User attribution: `user_id` is populated from the authenticated user; legacy env fallback (`JIRA_LITE_USER_ID`/`USER`/`USERNAME`/`LOGNAME`) applies only to dev/seeding contexts.
 
 ## Entities at a Glance
 - Project: top-level container with name, 4-char abbreviation, status, description, optional success criteria, and a required Sponsor; stores `project_id`, `user_id`, timestamps, and soft delete metadata but those fields are not surfaced in the UI.
-- Solution: versioned deliverable that belongs to a project and is the primary trackable work item; carries Owner/Assignee, priority, optional due date, optional current phase, optional success criteria, and optional blockers/risks; can enable/disable phases to fit its workflow; stores `solution_id`, `user_id`, timestamps, and soft delete metadata.
+- Solution: versioned deliverable that belongs to a project and is the primary trackable work item; carries Owner/Assignee, priority, optional due date, optional current phase, optional success criteria, optional blockers/risks, and an RAG indicator (auto or manual w/ reason); can enable/disable phases to fit its workflow; stores `solution_id`, `user_id`, timestamps, and soft delete metadata.
 - Subcomponent: optional task belonging to a project + solution; minimal fields (name, status, priority, due date, assignee). Subcomponents do **not** carry phases/progress.
 
 ## Table Definitions (simplified)
@@ -48,6 +48,9 @@ Indexes
 | project_id        | TEXT     | FK to project               |
 | version           | TEXT     | Version string (e.g., 0.1.0)|
 | status            | TEXT     | Solution lifecycle status   |
+| rag_status        | TEXT     | RAG status (`red|amber|green`) |
+| rag_source        | TEXT     | RAG mode (`auto|manual`)    |
+| rag_reason        | TEXT     | Required when `rag_source=manual` |
 | priority          | INTEGER  | 0–5 priority (0 = highest)  |
 | due_date          | DATE     | Optional target date (YYYY-MM-DD) |
 | current_phase     | TEXT     | Optional phase slug (FK-like to `phases.phase_id`) |
@@ -67,15 +70,20 @@ Indexes
 
 Allowed values
 - status: `not_started`, `active`, `on_hold`, `complete`, `abandoned`
+- rag_status: `red`, `amber`, `green`
+- rag_source: `auto`, `manual`
 
 Validation & Defaults
 - Required: `project_id`, `solution_name`, `version`, `status`, `owner`; most other fields optional (including `success_criteria`).
 - Defaults: `status` defaults to `not_started`; `priority` defaults to 3; `due_date` and `current_phase` default to null.
+- RAG defaults: `rag_source=auto`, `rag_status=amber`, `rag_reason=null`.
+  - Auto computation (conservative): `complete` → Green; `abandoned` → Red; overdue `due_date` (when set) → Red; else Amber.
+  - Manual override: requires `rag_status` + non-empty `rag_reason`; persists until switched back to `rag_source=auto`.
 - Uniqueness: `(project_id, solution_name, version)` must be unique among non-deleted rows.
 
 Indexes
 - Unique: `(project_id, solution_name, version)`
-- Index: `(project_id, status)`, `(status)`, `(priority)`, `(due_date)`, `(current_phase)`, `(owner)`, `(assignee)`
+- Index: `(project_id, status)`, `(status)`, `(priority)`, `(due_date)`, `(current_phase)`, `(owner)`, `(assignee)`, `(rag_status)`, `(rag_source)`
 
 ### phases (lookup)
 | Field       | Type     | Description                        |

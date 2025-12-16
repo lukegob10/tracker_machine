@@ -23,3 +23,14 @@ class SubcomponentStatus(str, Enum):
     on_hold = "on_hold"
     complete = "complete"
     abandoned = "abandoned"
+
+
+class RagStatus(str, Enum):
+    red = "red"
+    amber = "amber"
+    green = "green"
+
+
+class RagSource(str, Enum):
+    auto = "auto"
+    manual = "manual"

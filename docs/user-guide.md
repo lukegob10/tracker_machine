@@ -22,12 +22,16 @@
 - Table shows Project, Abbrev, Sponsor, Status.
 
 ## Solutions
-- Form: Project (select), Solution name, Version, Status, Priority, Due Date, Current Phase, Owner (required), Assignee/Approver (optional), Key Stakeholder (optional), Description, Success Criteria, Blockers, Risks.
+- Form: Project (select), Solution name, Version, Status, Priority, Due Date, Current Phase, Owner (required), Assignee/Approver (optional), Key Stakeholder (optional), Description, Success Criteria, Blockers, Risks, plus RAG (see below).
+- RAG (Solutions):
+  - Default is **Auto** (conservative): Amber unless Complete (Green), Abandoned (Red), or Due Date is set and overdue (Red).
+  - Switch to **Manual** to set Red/Amber/Green yourself; a reason is required.
+  - Switch back to **Auto** to reset and let the system recompute.
 - Create: select a Project, fill fields, Save.
 - Edit: click a row to load, edit, Save.
 - Phases: use the phase checklist under the table to enable/disable phases per solution (this controls which phases can be selected as Current Phase).
 - CSV: Download/Upload available.
-- Table shows Solution, Project, Version, Owner, Assignee, Phase, Due, Status.
+- Table shows Solution, Project, Version, Owner, Assignee, Phase, Due, RAG, Status.
 
 ## Subcomponents
 - Subcomponents are optional task rows under a Solution.
@@ -39,7 +43,7 @@
 
 ## Deliverables
 - Unified table across all solutions with project context.
-- Columns include Project, Sponsor, Solution, Version, Owner, Assignee, Current Phase, Priority, Due, Status, Progress.
+- Columns include Project, Sponsor, Solution, Version, Owner, Assignee, Current Phase, Priority, Due, RAG, Status, Progress.
 - Use filters to answer “who owns this?” or narrow by phase/priority.
 
 ## Kanban (Swimlanes)

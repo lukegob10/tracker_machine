@@ -3,7 +3,7 @@ from typing import Optional
 
 from pydantic import BaseModel, ConfigDict, constr
 
-from .enums import ProjectStatus, SolutionStatus, SubcomponentStatus
+from .enums import ProjectStatus, RagSource, RagStatus, SolutionStatus, SubcomponentStatus
 
 
 class UserBase(BaseModel):
@@ -88,6 +88,9 @@ class SolutionBase(BaseModel):
     solution_name: Optional[str] = None
     version: Optional[str] = None
     status: Optional[SolutionStatus] = None
+    rag_status: Optional[RagStatus] = None
+    rag_source: Optional[RagSource] = None
+    rag_reason: Optional[str] = None
     priority: Optional[int] = None
     due_date: Optional[date] = None
     current_phase: Optional[str] = None
@@ -121,6 +124,9 @@ class SolutionRead(BaseModel):
     solution_name: str
     version: str
     status: SolutionStatus
+    rag_status: RagStatus
+    rag_source: RagSource
+    rag_reason: Optional[str] = None
     priority: int
     due_date: Optional[date] = None
     current_phase: Optional[str] = None

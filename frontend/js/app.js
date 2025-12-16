@@ -512,29 +512,33 @@ function restoreSelections(projectId, solutionId, subcomponentId) {
     }
   }
 
-  if (solutionId && els.solutionForm) {
-    const sol = state.solutions.find((s) => s.solution_id === solutionId);
-    if (sol) {
-      els.solutionForm.querySelector('[name="solution_id"]').value = sol.solution_id;
-      els.solutionForm.querySelector('[name="project_id"]').value = sol.project_id;
-      els.solutionForm.querySelector('[name="solution_name"]').value = sol.solution_name || "";
-      els.solutionForm.querySelector('[name="version"]').value = sol.version || "";
-      els.solutionForm.querySelector('[name="status"]').value = sol.status || "";
-      els.solutionForm.querySelector('[name="priority"]').value = sol.priority ?? "";
-      els.solutionForm.querySelector('[name="due_date"]').value = sol.due_date || "";
-      els.solutionForm.querySelector('[name="description"]').value = sol.description || "";
-      els.solutionForm.querySelector('[name="success_criteria"]').value = sol.success_criteria || "";
-      els.solutionForm.querySelector('[name="owner"]').value = sol.owner || "";
+	  if (solutionId && els.solutionForm) {
+	    const sol = state.solutions.find((s) => s.solution_id === solutionId);
+	    if (sol) {
+	      els.solutionForm.querySelector('[name="solution_id"]').value = sol.solution_id;
+	      els.solutionForm.querySelector('[name="project_id"]').value = sol.project_id;
+	      els.solutionForm.querySelector('[name="solution_name"]').value = sol.solution_name || "";
+	      els.solutionForm.querySelector('[name="version"]').value = sol.version || "";
+	      els.solutionForm.querySelector('[name="status"]').value = sol.status || "";
+	      els.solutionForm.querySelector('[name="rag_source"]').value = sol.rag_source || "auto";
+	      els.solutionForm.querySelector('[name="rag_status"]').value = sol.rag_status || "amber";
+	      els.solutionForm.querySelector('[name="rag_reason"]').value = sol.rag_reason || "";
+	      els.solutionForm.querySelector('[name="priority"]').value = sol.priority ?? "";
+	      els.solutionForm.querySelector('[name="due_date"]').value = sol.due_date || "";
+	      els.solutionForm.querySelector('[name="description"]').value = sol.description || "";
+	      els.solutionForm.querySelector('[name="success_criteria"]').value = sol.success_criteria || "";
+	      els.solutionForm.querySelector('[name="owner"]').value = sol.owner || "";
       els.solutionForm.querySelector('[name="assignee"]').value = sol.assignee || "";
       els.solutionForm.querySelector('[name="approver"]').value = sol.approver || "";
       els.solutionForm.querySelector('[name="key_stakeholder"]').value = sol.key_stakeholder || "";
       els.solutionForm.querySelector('[name="blockers"]').value = sol.blockers || "";
       els.solutionForm.querySelector('[name="risks"]').value = sol.risks || "";
-      updateCurrentPhaseOptions(sol.solution_id);
-      els.solutionForm.querySelector('[name="current_phase"]').value = sol.current_phase || "";
-      renderSolutionPhases(sol.solution_id);
-    }
-  }
+	      updateCurrentPhaseOptions(sol.solution_id);
+	      els.solutionForm.querySelector('[name="current_phase"]').value = sol.current_phase || "";
+	      renderSolutionPhases(sol.solution_id);
+	      updateRagFormControls();
+	    }
+	  }
 
   if (subcomponentId && els.subcomponentForm) {
     const sub = state.subcomponents.find((s) => s.subcomponent_id === subcomponentId);
@@ -663,6 +667,48 @@ function formatStatus(status) {
     .join(" ");
 }
 
+function escapeAttr(value) {
+  if (value == null) return "";
+  return String(value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/\"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function ragPill(ragStatus, ragSource, ragReason) {
+  if (!ragStatus) return "—";
+  const status = String(ragStatus);
+  const source = String(ragSource || "auto");
+  const label = status.charAt(0).toUpperCase() + status.slice(1);
+  const cls = status === "red" ? "danger" : status === "green" ? "positive" : "warn";
+  const title =
+    source === "manual" && ragReason
+      ? `Manual: ${ragReason}`
+      : source === "manual"
+        ? "Manual override"
+        : "Auto";
+  const suffix = source === "manual" ? "*" : "";
+  return `<span class="pill ${cls}" title="${escapeAttr(title)}">${label}${suffix}</span>`;
+}
+
+function updateRagFormControls() {
+  const form = els.solutionForm;
+  if (!form) return;
+  const sourceEl = form.querySelector('[name="rag_source"]');
+  const statusEl = form.querySelector('[name="rag_status"]');
+  const reasonEl = form.querySelector('[name="rag_reason"]');
+  const reasonLabel = form.querySelector(".rag-reason-field");
+  if (!sourceEl || !statusEl || !reasonEl) return;
+
+  const manual = (sourceEl.value || "auto") === "manual";
+  statusEl.disabled = !manual;
+  reasonEl.disabled = !manual;
+  if (reasonLabel) reasonLabel.classList.toggle("hidden", !manual);
+  if (!manual) reasonEl.value = "";
+}
+
 function phaseDisplayName(phaseId) {
   if (!phaseId) return "";
   const phase = state.phases.find((p) => p.phase_id === phaseId);
@@ -674,7 +720,7 @@ function phaseDisplayName(phaseId) {
 function renderMasterTable() {
   if (!els.masterTable) return;
   const rows = filteredSolutions();
-  const header = ["Project", "Sponsor", "Solution", "Version", "Owner", "Assignee", "Current Phase", "Priority", "Due", "Status", "Progress"];
+  const header = ["Project", "Sponsor", "Solution", "Version", "Owner", "Assignee", "Current Phase", "Priority", "Due", "RAG", "Status", "Progress"];
   let html = "<table><thead><tr>" + header.map((h) => `<th>${h}</th>`).join("") + "</tr></thead><tbody>";
   rows.forEach((r) => {
     const project = state.projects.find((p) => p.project_id === r.project_id);
@@ -688,6 +734,7 @@ function renderMasterTable() {
       <td>${phaseDisplayName(r.current_phase) || "–"}</td>
       <td>${r.priority ?? ""}</td>
       <td>${r.due_date || ""}</td>
+      <td>${ragPill(r.rag_status, r.rag_source, r.rag_reason)}</td>
       <td>${formatStatus(r.status)}</td>
       <td>${solutionProgress(r)}%</td>
     </tr>`;
@@ -856,6 +903,12 @@ function renderProjects() {
 
 function bindSolutionForm() {
   if (!els.solutionForm) return;
+  const ragSourceSelect = els.solutionForm.querySelector('[name="rag_source"]');
+  if (ragSourceSelect) {
+    ragSourceSelect.addEventListener("change", updateRagFormControls);
+  }
+  updateRagFormControls();
+
   const saveHandler = async () => {
     const data = new FormData(els.solutionForm);
     const id = data.get("solution_id");
@@ -863,10 +916,12 @@ function bindSolutionForm() {
       alert("Select a solution or use New to create one.");
       return;
     }
+    const ragSource = data.get("rag_source") || "auto";
     const payload = {
       solution_name: data.get("solution_name"),
       version: data.get("version"),
       status: data.get("status"),
+      rag_source: ragSource,
       priority: Number(data.get("priority") || 3),
       due_date: data.get("due_date") || null,
       current_phase: data.get("current_phase") || null,
@@ -879,6 +934,13 @@ function bindSolutionForm() {
       blockers: data.get("blockers") || null,
       risks: data.get("risks") || null,
     };
+    if (ragSource === "manual") {
+      payload.rag_status = data.get("rag_status") || "amber";
+      payload.rag_reason = data.get("rag_reason") || "";
+    } else {
+      delete payload.rag_status;
+      delete payload.rag_reason;
+    }
     try {
       markIgnoreRefresh("solutions");
       const updated = await api(`/solutions/${id}`, { method: "PATCH", body: JSON.stringify(payload) });
@@ -886,11 +948,15 @@ function bindSolutionForm() {
       populateSelects();
       if (els.solutionForm?.querySelector('[name="solution_id"]')?.value === updated.solution_id) {
         els.solutionForm.querySelector('[name="status"]').value = updated.status || "";
+        els.solutionForm.querySelector('[name="rag_source"]').value = updated.rag_source || "auto";
+        els.solutionForm.querySelector('[name="rag_status"]').value = updated.rag_status || "amber";
+        els.solutionForm.querySelector('[name="rag_reason"]').value = updated.rag_reason || "";
         els.solutionForm.querySelector('[name="priority"]').value = updated.priority ?? "";
         els.solutionForm.querySelector('[name="due_date"]').value = updated.due_date || "";
         updateCurrentPhaseOptions(updated.solution_id);
         els.solutionForm.querySelector('[name="current_phase"]').value = updated.current_phase || "";
         els.solutionForm.querySelector('[name="success_criteria"]').value = updated.success_criteria || "";
+        updateRagFormControls();
       }
       renderActiveView();
     } catch (err) {
@@ -905,6 +971,10 @@ function bindSolutionForm() {
   });
   els.solutionForm.addEventListener("reset", () => {
     els.solutionForm.querySelector('[name="solution_id"]').value = "";
+    els.solutionForm.querySelector('[name="rag_source"]').value = "auto";
+    els.solutionForm.querySelector('[name="rag_status"]').value = "amber";
+    els.solutionForm.querySelector('[name="rag_reason"]').value = "";
+    updateRagFormControls();
     updateCurrentPhaseOptions("");
     renderSolutionPhases();
   });
@@ -912,10 +982,12 @@ function bindSolutionForm() {
     els.newSolutionBtn.addEventListener("click", async () => {
       const data = new FormData(els.solutionForm);
       const projectId = data.get("project_id");
+      const ragSource = data.get("rag_source") || "auto";
       const payload = {
         solution_name: data.get("solution_name"),
         version: data.get("version"),
         status: data.get("status"),
+        rag_source: ragSource,
         priority: Number(data.get("priority") || 3),
         due_date: data.get("due_date") || null,
         current_phase: data.get("current_phase") || null,
@@ -928,9 +1000,16 @@ function bindSolutionForm() {
 	        blockers: data.get("blockers") || null,
 	        risks: data.get("risks") || null,
 	      };
-	      if (!projectId) {
-	        alert("Select a project to create a solution.");
-	        return;
+      if (ragSource === "manual") {
+        payload.rag_status = data.get("rag_status") || "amber";
+        payload.rag_reason = data.get("rag_reason") || "";
+      } else {
+        delete payload.rag_status;
+        delete payload.rag_reason;
+      }
+		      if (!projectId) {
+		        alert("Select a project to create a solution.");
+		        return;
       }
       try {
         markIgnoreRefresh("solutions");
@@ -953,10 +1032,10 @@ function renderSolutions() {
   if (!els.solutionList) return;
   const projectMap = new Map(state.projects.map((p) => [p.project_id, p]));
   let html =
-    "<table><thead><tr><th>Solution</th><th>Project</th><th>Version</th><th>Owner</th><th>Assignee</th><th>Phase</th><th>Due</th><th>Status</th></tr></thead><tbody>";
+    "<table><thead><tr><th>Solution</th><th>Project</th><th>Version</th><th>Owner</th><th>Assignee</th><th>Phase</th><th>Due</th><th>RAG</th><th>Status</th></tr></thead><tbody>";
   state.solutions.forEach((s) => {
     const proj = projectMap.get(s.project_id);
-    html += `<tr data-id="${s.solution_id}"><td>${s.solution_name}</td><td>${proj?.project_name || ""}</td><td>${s.version}</td><td>${s.owner || ""}</td><td>${s.assignee || ""}</td><td>${phaseDisplayName(s.current_phase) || "–"}</td><td>${s.due_date || ""}</td><td>${formatStatus(s.status)}</td></tr>`;
+    html += `<tr data-id="${s.solution_id}"><td>${s.solution_name}</td><td>${proj?.project_name || ""}</td><td>${s.version}</td><td>${s.owner || ""}</td><td>${s.assignee || ""}</td><td>${phaseDisplayName(s.current_phase) || "–"}</td><td>${s.due_date || ""}</td><td>${ragPill(s.rag_status, s.rag_source, s.rag_reason)}</td><td>${formatStatus(s.status)}</td></tr>`;
   });
   html += "</tbody></table>";
   els.solutionList.innerHTML = html;
@@ -1368,6 +1447,9 @@ function bindSolutionListClicks() {
     els.solutionForm.querySelector('[name="solution_name"]').value = sol.solution_name;
     els.solutionForm.querySelector('[name="version"]').value = sol.version;
     els.solutionForm.querySelector('[name="status"]').value = sol.status;
+    els.solutionForm.querySelector('[name="rag_source"]').value = sol.rag_source || "auto";
+    els.solutionForm.querySelector('[name="rag_status"]').value = sol.rag_status || "amber";
+    els.solutionForm.querySelector('[name="rag_reason"]').value = sol.rag_reason || "";
     els.solutionForm.querySelector('[name="priority"]').value = sol.priority ?? "";
     els.solutionForm.querySelector('[name="due_date"]').value = sol.due_date || "";
     els.solutionForm.querySelector('[name="description"]').value = sol.description || "";
@@ -1381,6 +1463,7 @@ function bindSolutionListClicks() {
     updateCurrentPhaseOptions(sol.solution_id);
     els.solutionForm.querySelector('[name="current_phase"]').value = sol.current_phase || "";
     renderSolutionPhases(sol.solution_id);
+    updateRagFormControls();
   });
 }
 

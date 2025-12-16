@@ -17,6 +17,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 from .enums import ProjectStatus, SolutionStatus, SubcomponentStatus
+from .enums import RagSource, RagStatus
 
 
 class Base(DeclarativeBase):
@@ -116,6 +117,13 @@ class Solution(TimestampMixin, SoftDeleteMixin, Base):
     status: Mapped[SolutionStatus] = mapped_column(
         Enum(SolutionStatus), index=True, nullable=False
     )
+    rag_status: Mapped[RagStatus] = mapped_column(
+        Enum(RagStatus), index=True, nullable=False, default=RagStatus.amber
+    )
+    rag_source: Mapped[RagSource] = mapped_column(
+        Enum(RagSource), index=True, nullable=False, default=RagSource.auto
+    )
+    rag_reason: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     priority: Mapped[int] = mapped_column(Integer, default=3, nullable=False, index=True)
     due_date: Mapped[Optional[date]] = mapped_column(Date, nullable=True, index=True)
     current_phase: Mapped[Optional[str]] = mapped_column(String, nullable=True, index=True)

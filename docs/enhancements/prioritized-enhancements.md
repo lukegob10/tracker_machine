@@ -26,15 +26,11 @@ Embed the system into decision flow, regulatory comfort, and executive routines 
    - Prevalidated templates, import preview with errors
    - Lowers friction for cross-Treasury onboarding
 
-4. **Conservative Auto-RAG (Project / Solution)**
-   - Default Amber; editable with reason text
-   - Exec-legible signal without false precision
-
-5. **Owner Dashboards**
+4. **Owner Dashboards**
    - Owner-centric view of projects, blockers, approvals pending
    - Drives daily habit formation
 
-6. **Dependency Visibility (“Blocked by”)**
+5. **Dependency Visibility (“Blocked by”)**
    - Simple dependency tags with overdue warnings
    - Surfaces second-order risk and interaction failures
 
@@ -43,15 +39,15 @@ Embed the system into decision flow, regulatory comfort, and executive routines 
 ## Phase 3 — Control Without Bureaucracy (12–20 weeks)
 *Add just enough process to satisfy governance—no more.*
 
-7. **Approval Checkpoints**
+6. **Approval Checkpoints**
    - “Awaiting Approval” status with approver attribution
    - Highlight overdue approvals
 
-8. **Review Cadence (Monthly / Quarterly)**
+7. **Review Cadence (Monthly / Quarterly)**
     - Prompts: what moved / what didn’t / why
     - Rolling comparisons in dashboards
 
-9. **Phase-Aware Signoff Workflow (Lightweight)**
+8. **Phase-Aware Signoff Workflow (Lightweight)**
     - Single approver, timestamp, note
     - Optional block on completion until signoff
 
@@ -60,9 +56,14 @@ Embed the system into decision flow, regulatory comfort, and executive routines 
 ## Phase 4 — Optional (Pull-Driven Only)
 *Add only if adoption warrants.*
 
-10. **Comment / Decision History**
-11. **Light Notifications (Email / Teams)**
-12. **Directory Assist (Owner Lookup)**
+9. **Comment / Decision History**
+10. **Light Notifications (Email / Teams)**
+11. **Directory Assist (Owner Lookup)**
+
+---
+
+## Completed (Implemented)
+- Conservative Auto-RAG (Solutions): default Amber; auto rules (Complete→Green, Abandoned/Overdue→Red); manual override requires reason; reset to auto supported.
 
 ---
 
