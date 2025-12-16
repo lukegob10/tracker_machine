@@ -33,13 +33,13 @@ See `docs/data-model.md` for field definitions/constraints.
 - `GET /api/projects?status=<not_started|active|on_hold|complete|abandoned>`
 - `POST /api/projects`
 ```json
-{ "project_name": "Data Platform", "name_abbreviation": "DPLT", "status": "active", "sponsor": "CFO Office", "description": "..." }
+{ "project_name": "Data Platform", "name_abbreviation": "DPLT", "status": "active", "sponsor": "CFO Office", "description": "...", "success_criteria": "..." }
 ```
 - `GET /api/projects/{project_id}`
-- `PATCH /api/projects/{project_id}` (partial: status, name_abbreviation, project_name, description, sponsor)
+- `PATCH /api/projects/{project_id}` (partial: status, name_abbreviation, project_name, description, success_criteria, sponsor)
 - `DELETE /api/projects/{project_id}` (soft delete)
 - Responses include `user_id` set by the server account/env.
-- Bulk CSV: `POST /api/projects/import` with `Content-Type: text/csv` (body is raw CSV bytes; fields: project_name, name_abbreviation, status, description, sponsor; strict-first duplicate detection), `GET /api/projects/export` (CSV download)
+- Bulk CSV: `POST /api/projects/import` with `Content-Type: text/csv` (body is raw CSV bytes; fields: project_name, name_abbreviation, status, description, success_criteria, sponsor; strict-first duplicate detection), `GET /api/projects/export` (CSV download)
 
 ## Solutions
 - `GET /api/solutions`
@@ -59,6 +59,7 @@ See `docs/data-model.md` for field definitions/constraints.
   "approver": "Risk Lead",
   "key_stakeholder": "Finance Ops",
   "description": "...",
+  "success_criteria": "...",
   "blockers": "...",
   "risks": "..."
 }
@@ -69,7 +70,7 @@ See `docs/data-model.md` for field definitions/constraints.
   - `current_phase` must exist and be enabled for the solution (see Solution Phases below)
 - `DELETE /api/solutions/{solution_id}` (soft delete)
 - Responses include `user_id` set by the server account/env.
-- Bulk CSV: `POST /api/solutions/import` with `Content-Type: text/csv` (body is raw CSV bytes; fields: project_name, solution_name, version, status, priority, due_date, current_phase, description, owner (required), assignee, approver, key_stakeholder, blockers, risks; creates missing projects; strict-first duplicates), `GET /api/solutions/export` (CSV download)
+- Bulk CSV: `POST /api/solutions/import` with `Content-Type: text/csv` (body is raw CSV bytes; fields: project_name, solution_name, version, status, priority, due_date, current_phase, description, success_criteria, owner (required), assignee, approver, key_stakeholder, blockers, risks; creates missing projects; strict-first duplicates), `GET /api/solutions/export` (CSV download)
 
 ## Phases (global) and Solution Phases
 - `GET /api/phases` → ordered list `{ phase_id, phase_group, phase_name, sequence }`

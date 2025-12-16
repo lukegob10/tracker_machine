@@ -34,7 +34,7 @@
       <div class="brand">SIPM</div>
       <div class="nav-group">
         <p class="nav-label">Views</p>
-        <button data-view="master" class="nav-btn active">Master List</button>
+        <button data-view="master" class="nav-btn active">Deliverables</button>
         <button data-view="dashboard" class="nav-btn">Dashboard</button>
         <button data-view="projects" class="nav-btn">Projects</button>
         <button data-view="solutions" class="nav-btn">Solutions</button>
@@ -59,7 +59,7 @@
       <section id="view-master" class="view active">
         <div class="panel">
           <div class="panel-header">
-            <h2>Master List</h2>
+            <h2>Deliverables</h2>
             <div class="filters" id="master-filters"></div>
           </div>
           <div id="master-table" class="table"></div>
@@ -109,13 +109,14 @@
                     <option value="complete">Complete</option>
                     <option value="abandoned">Abandoned</option>
                   </select>
-                </label>
-                <label>Sponsor <input name="sponsor" required /></label>
-                <label class="full-span">Description <textarea name="description"></textarea></label>
-                <div class="form-actions full-span">
-                  <button type="submit">Save Edit</button>
-                  <button type="button" id="new-project" class="secondary">New</button>
-                  <button type="reset" class="secondary">Reset</button>
+	                </label>
+	                <label>Sponsor <input name="sponsor" required /></label>
+	                <label class="full-span">Description <textarea name="description"></textarea></label>
+	                <label class="full-span">Success Criteria <textarea name="success_criteria" placeholder="- Outcome / metric / target / evidence"></textarea></label>
+	                <div class="form-actions full-span">
+	                  <button type="submit">Save Edit</button>
+	                  <button type="button" id="new-project" class="secondary">New</button>
+	                  <button type="reset" class="secondary">Reset</button>
                 </div>
               </form>
               <div id="project-list" class="table"></div>
@@ -162,13 +163,14 @@
 	                </label>
 	                <label class="wide">Solution Owner <input name="owner" required /></label>
 	                <label class="wide">Assignee <input name="assignee" /></label>
-	                <label class="wide">Approver <input name="approver" /></label>
-	                <label class="wide">Key Stakeholder <input name="key_stakeholder" /></label>
-	                <label class="full-span">Description <textarea name="description"></textarea></label>
-	                <label class="full-span">Blockers <textarea name="blockers"></textarea></label>
-	                <label class="full-span">Risks <textarea name="risks"></textarea></label>
-	                <div class="form-actions full-span">
-	                  <button type="submit">Save Edit</button>
+		                <label class="wide">Approver <input name="approver" /></label>
+		                <label class="wide">Key Stakeholder <input name="key_stakeholder" /></label>
+		                <label class="full-span">Description <textarea name="description"></textarea></label>
+		                <label class="full-span">Success Criteria <textarea name="success_criteria" placeholder="- Outcome / metric / target / evidence"></textarea></label>
+		                <label class="full-span">Blockers <textarea name="blockers"></textarea></label>
+		                <label class="full-span">Risks <textarea name="risks"></textarea></label>
+		                <div class="form-actions full-span">
+		                  <button type="submit">Save Edit</button>
 	                  <button type="button" id="new-solution" class="secondary">New</button>
 		                  <button type="reset" class="secondary">Reset</button>
 		                </div>

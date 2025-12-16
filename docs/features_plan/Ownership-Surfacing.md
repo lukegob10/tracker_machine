@@ -9,7 +9,7 @@ Make ownership obvious everywhere and enable “who owns this?” filtering acro
 - Keep roles consistent: Project = Sponsor; Solution = Owner; Subcomponent = Owner (accountable) and Assignee (executor).
 
 ## UI Changes
-- Master List: add columns/pills for Sponsor (project), Solution Owner, Subcomponent Owner, Assignee; add filters for Owner and Assignee.
+- Deliverables: add columns/pills for Sponsor (project), Solution Owner, Subcomponent Owner, Assignee; add filters for Owner and Assignee.
 - Projects view: show Sponsor column; add Sponsor filter; ensure Sponsor field is prominent in the form.
 - Solutions view: show Owner column; add Owner filter; keep Owner required in the form.
 - Subcomponents view: show Owner and Assignee columns; add filters for Owner and Assignee.
@@ -34,7 +34,7 @@ Make ownership obvious everywhere and enable “who owns this?” filtering acro
 
 ## Frontend Tasks
 - Add filters and render owner fields in tables/cards:
-  - Master list filter for Owner and Assignee; show Sponsor/Solution Owner/Owner/Assignee columns.
+  - Deliverables filter for Owner and Assignee; show Sponsor/Solution Owner/Owner/Assignee columns.
   - Projects table: add Sponsor column and filter.
   - Solutions table: add Owner column and filter.
   - Subcomponents table: add Owner/Assignee columns and filters.

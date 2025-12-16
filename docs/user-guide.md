@@ -6,23 +6,23 @@
 - After sign-in, you’ll see the app shell (sidebar, top status, views). If you see “Sign in required,” log in first.
 
 ## Navigation & Views
-- Sidebar views: Master List, Dashboard, Projects, Solutions, Subcomponents, Swimlanes (Kanban), Calendar.
+- Sidebar views: Deliverables, Dashboard, Projects, Solutions, Subcomponents, Swimlanes (Kanban), Calendar.
 - Top bar: connection pill (Online/Error), current user, Logout, theme toggle (dark/light).
 - Status pills or alerts show load errors; try reloading if needed.
 
 ## Filters & Search
-- Master List filters: Status, Project, Current Phase, Priority ≤, Owner, Assignee, text search. Filters update instantly.
+- Deliverables filters: Status, Project, Current Phase, Priority ≤, Owner, Assignee, text search. Filters update instantly.
 - Other views have entity-specific filters (e.g., tables can be sorted/filtered via headers/controls where shown).
 
 ## Projects
-- Form: Project name, Abbreviation (4 chars), Sponsor (required), Status, Description.
+- Form: Project name, Abbreviation (4 chars), Sponsor (required), Status, Description, Success Criteria.
 - Create: fill the form and click Save. New clears/loads into the form.
 - Edit: click a row to load it into the form, change fields, Save.
 - CSV: Download/Upload buttons; upload results show success/errors.
 - Table shows Project, Abbrev, Sponsor, Status.
 
 ## Solutions
-- Form: Project (select), Solution name, Version, Status, Priority, Due Date, Current Phase, Owner (required), Assignee/Approver (optional), Key Stakeholder (optional), Description, Blockers/Risks/Next Decision.
+- Form: Project (select), Solution name, Version, Status, Priority, Due Date, Current Phase, Owner (required), Assignee/Approver (optional), Key Stakeholder (optional), Description, Success Criteria, Blockers, Risks.
 - Create: select a Project, fill fields, Save.
 - Edit: click a row to load, edit, Save.
 - Phases: use the phase checklist under the table to enable/disable phases per solution (this controls which phases can be selected as Current Phase).
@@ -37,7 +37,7 @@
 - CSV: Download/Upload available.
 - Table shows Task, Project, Solution, Assignee, Status, Priority, Due.
 
-## Master List
+## Deliverables
 - Unified table across all solutions with project context.
 - Columns include Project, Sponsor, Solution, Version, Owner, Assignee, Current Phase, Priority, Due, Status, Progress.
 - Use filters to answer “who owns this?” or narrow by phase/priority.

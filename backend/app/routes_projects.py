@@ -78,6 +78,7 @@ def create_project(
         name_abbreviation=payload.name_abbreviation,
         status=payload.status,
         description=payload.description,
+        success_criteria=payload.success_criteria,
         sponsor=payload.sponsor,
         user_id=current_user.user_id,
     )
@@ -94,6 +95,7 @@ def create_project(
             "name_abbreviation": (None, project.name_abbreviation),
             "status": (None, project.status),
             "description": (None, project.description),
+            "success_criteria": (None, project.success_criteria),
             "sponsor": (None, project.sponsor),
         },
     )
@@ -148,6 +150,7 @@ def import_projects(
             continue
 
         description = normalize_str(row.get("description")) or None
+        success_criteria = normalize_str(row.get("success_criteria")) or None
         existing = _project_query(session).filter(Project.project_name == name).first()
         try:
             if existing:
@@ -155,11 +158,13 @@ def import_projects(
                     "name_abbreviation": existing.name_abbreviation,
                     "status": existing.status,
                     "description": existing.description,
+                    "success_criteria": existing.success_criteria,
                     "sponsor": existing.sponsor,
                 }
                 existing.name_abbreviation = abbr
                 existing.status = status_enum
                 existing.description = description
+                existing.success_criteria = success_criteria
                 existing.sponsor = sponsor
                 existing.updated_at = datetime.now(timezone.utc)
                 session.add(existing)
@@ -173,6 +178,7 @@ def import_projects(
                         "name_abbreviation": (before["name_abbreviation"], existing.name_abbreviation),
                         "status": (before["status"], existing.status),
                         "description": (before["description"], existing.description),
+                        "success_criteria": (before["success_criteria"], existing.success_criteria),
                         "sponsor": (before["sponsor"], existing.sponsor),
                     },
                     request_id=request_id,
@@ -184,6 +190,7 @@ def import_projects(
                     name_abbreviation=abbr,
                     status=status_enum,
                     description=description,
+                    success_criteria=success_criteria,
                     sponsor=sponsor,
                     user_id=current_user.user_id,
                 )
@@ -200,6 +207,7 @@ def import_projects(
                         "name_abbreviation": (None, project.name_abbreviation),
                         "status": (None, project.status),
                         "description": (None, project.description),
+                        "success_criteria": (None, project.success_criteria),
                         "sponsor": (None, project.sponsor),
                     },
                     request_id=request_id,
@@ -218,7 +226,7 @@ def import_projects(
 def export_projects(session: Session = Depends(get_db)):
     projects = _project_query(session).all()
     buffer = StringIO()
-    fieldnames = ["project_name", "name_abbreviation", "status", "description", "sponsor"]
+    fieldnames = ["project_name", "name_abbreviation", "status", "description", "success_criteria", "sponsor"]
     writer = csv.DictWriter(buffer, fieldnames=fieldnames)
     writer.writeheader()
     for p in projects:
@@ -228,6 +236,7 @@ def export_projects(session: Session = Depends(get_db)):
                 "name_abbreviation": p.name_abbreviation,
                 "status": p.status.value if hasattr(p.status, "value") else p.status,
                 "description": p.description or "",
+                "success_criteria": p.success_criteria or "",
                 "sponsor": p.sponsor or "",
             }
         )

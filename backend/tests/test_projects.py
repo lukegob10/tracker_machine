@@ -9,6 +9,7 @@ async def test_create_and_list_projects(client):
             "project_name": "Data Platform",
             "name_abbreviation": "DPLT",
             "description": "Modernize data stack",
+            "success_criteria": "Reduce run time by 30% and decommission legacy tooling",
             "sponsor": "CFO Office",
         },
     )
@@ -17,6 +18,7 @@ async def test_create_and_list_projects(client):
     assert data["project_name"] == "Data Platform"
     assert data["name_abbreviation"] == "DPLT"
     assert data["status"] == "not_started"
+    assert data["success_criteria"] == "Reduce run time by 30% and decommission legacy tooling"
 
     list_resp = await client.get("/api/projects/")
     assert list_resp.status_code == 200
@@ -56,12 +58,17 @@ async def test_update_project_status_and_description(client):
 
     update_resp = await client.patch(
         f"/api/projects/{project_id}",
-        json={"status": "on_hold", "description": "Waiting on vendor"},
+        json={
+            "status": "on_hold",
+            "description": "Waiting on vendor",
+            "success_criteria": "Pilot with 3 teams and hit >90% satisfaction",
+        },
     )
     assert update_resp.status_code == 200
     updated = update_resp.json()
     assert updated["status"] == "on_hold"
     assert updated["description"] == "Waiting on vendor"
+    assert updated["success_criteria"] == "Pilot with 3 teams and hit >90% satisfaction"
 
 
 @pytest.mark.anyio

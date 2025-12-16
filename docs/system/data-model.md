@@ -5,8 +5,8 @@ SQLite schema for Jira-lite with projects, solutions, and subcomponents. All tim
 User attribution: `user_id` is populated from the authenticated user; legacy env fallback (`JIRA_LITE_USER_ID`/`USER`/`USERNAME`/`LOGNAME`) applies only to dev/seeding contexts.
 
 ## Entities at a Glance
-- Project: top-level container with name, 4-char abbreviation, status, description, and a required Sponsor; stores `project_id`, `user_id`, timestamps, and soft delete metadata but those fields are not surfaced in the UI.
-- Solution: versioned deliverable that belongs to a project and is the primary trackable work item; carries Owner/Assignee, priority, optional due date, optional current phase, and optional blockers/risks; can enable/disable phases to fit its workflow; stores `solution_id`, `user_id`, timestamps, and soft delete metadata.
+- Project: top-level container with name, 4-char abbreviation, status, description, optional success criteria, and a required Sponsor; stores `project_id`, `user_id`, timestamps, and soft delete metadata but those fields are not surfaced in the UI.
+- Solution: versioned deliverable that belongs to a project and is the primary trackable work item; carries Owner/Assignee, priority, optional due date, optional current phase, optional success criteria, and optional blockers/risks; can enable/disable phases to fit its workflow; stores `solution_id`, `user_id`, timestamps, and soft delete metadata.
 - Subcomponent: optional task belonging to a project + solution; minimal fields (name, status, priority, due date, assignee). Subcomponents do **not** carry phases/progress.
 
 ## Table Definitions (simplified)
@@ -19,6 +19,7 @@ User attribution: `user_id` is populated from the authenticated user; legacy env
 | name_abbreviation | TEXT     | 4-character code            |
 | status            | TEXT     | Project lifecycle status    |
 | description       | TEXT     | Project summary             |
+| success_criteria  | TEXT     | Optional definition of done |
 | sponsor           | TEXT     | Accountable/Sponsor (required) |
 | user_id           | TEXT     | Owner/user reference        |
 | created_at        | DATETIME | Created timestamp           |
@@ -30,7 +31,7 @@ Allowed values
 - check: enforce `name_abbreviation` length = 4 via validation/constraint
 
 Validation & Defaults
-- Required: `project_name`, `name_abbreviation`, `status`, `sponsor`; `description` optional.
+- Required: `project_name`, `name_abbreviation`, `status`, `sponsor`; `description` and `success_criteria` optional.
 - Defaults: `status` defaults to `not_started`; `sponsor` must be provided on create/import (UI-enforced; server stores empty string only for legacy/import edge cases).
 - Normalization: enforce `name_abbreviation` length = 4; optionally uppercase in validation.
 - Soft delete: `deleted_at` set instead of hard delete; default queries exclude soft-deleted rows.
@@ -51,6 +52,7 @@ Indexes
 | due_date          | DATE     | Optional target date (YYYY-MM-DD) |
 | current_phase     | TEXT     | Optional phase slug (FK-like to `phases.phase_id`) |
 | description       | TEXT     | Summary/notes               |
+| success_criteria  | TEXT     | Optional definition of done |
 | owner             | TEXT     | Solution Owner (R + A, required) |
 | assignee          | TEXT     | Executor (optional)         |
 | approver          | TEXT     | Gate/approver (optional)    |
@@ -67,7 +69,7 @@ Allowed values
 - status: `not_started`, `active`, `on_hold`, `complete`, `abandoned`
 
 Validation & Defaults
-- Required: `project_id`, `solution_name`, `version`, `status`, `owner`; most other fields optional.
+- Required: `project_id`, `solution_name`, `version`, `status`, `owner`; most other fields optional (including `success_criteria`).
 - Defaults: `status` defaults to `not_started`; `priority` defaults to 3; `due_date` and `current_phase` default to null.
 - Uniqueness: `(project_id, solution_name, version)` must be unique among non-deleted rows.
 

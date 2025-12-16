@@ -21,19 +21,19 @@
   - CSV: `POST /api/subcomponents/import`, `GET /api/subcomponents/export`
 
 ## Data shapes (read)
-- Project: `{ project_id, project_name, name_abbreviation, status, description, sponsor, user_id, created_at, updated_at }`
-- Solution: `{ solution_id, project_id, solution_name, version, status, priority, due_date, current_phase, description, owner, assignee, approver, key_stakeholder, blockers, risks, completed_at, user_id, created_at, updated_at }`
+- Project: `{ project_id, project_name, name_abbreviation, status, description, success_criteria, sponsor, user_id, created_at, updated_at }`
+- Solution: `{ solution_id, project_id, solution_name, version, status, priority, due_date, current_phase, description, success_criteria, owner, assignee, approver, key_stakeholder, blockers, risks, completed_at, user_id, created_at, updated_at }`
 - Phase: `{ phase_id, phase_group, phase_name, sequence }`
 - SolutionPhase: `{ solution_phase_id, solution_id, phase_id, is_enabled, sequence_override, created_at, updated_at }`
 - Subcomponent: `{ subcomponent_id, project_id, solution_id, subcomponent_name, status, priority, due_date, assignee, completed_at, user_id, created_at, updated_at }`
 
 ## Views & UX
-- **Master List**: Solution-first table across projects. Filters: status, project, current phase, priority ≤, owner, assignee, search. Columns: Project, Sponsor, Solution, Version, Owner, Assignee, Current Phase, Priority, Due, Status, Progress.
+- **Deliverables**: Solution-first table across projects. Filters: status, project, current phase, priority ≤, owner, assignee, search. Columns: Project, Sponsor, Solution, Version, Owner, Assignee, Current Phase, Priority, Due, Status, Progress.
 - **Dashboard**: solution-based KPI cards (projects/solutions/subcomponents counts, overdue, active, complete, on hold, no due date, avg priority) plus project and solution summary tables and attention/upcoming panels.
 - **Projects**: CRUD form + table. Sponsor is required; abbreviation must be 4 chars.
 - **Solutions**:
   - CRUD form + table.
-  - Tracks the primary delivery fields: status, priority, due date, current phase, owner/assignee, and optional blockers/risks.
+  - Tracks the primary delivery fields: status, priority, due date, current phase, owner/assignee, optional success criteria, and optional blockers/risks.
   - Phase toggles: per selected solution, enable/disable phases. Disabling the currently selected `current_phase` clears it server-side.
 - **Subcomponents** (tasks): optional task tracking under a solution. Form + table; minimal fields: task name, status, priority, due date, assignee.
 - **Swimlanes**: solution cards grouped by Project and then by Phase Group (derived from `solution.current_phase`).

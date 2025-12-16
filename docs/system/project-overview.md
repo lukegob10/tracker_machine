@@ -21,9 +21,20 @@
 - Database: SQLite by default (`db/app.db`, configurable via `JIRA_LITE_DATABASE_URL`); tables auto-created on startup; phases seeded; optional sample data via `SAMPLE_SEED=true`.
 - Packaging: Python dependencies in `backend/requirements.txt`; no container spec committed yet.
 
+## High-level Architecture (Simplified)
+```mermaid
+flowchart LR
+  Browser[User Browser<br/>(Static UI)]
+  API[FastAPI App<br/>(serves UI + /api + /api/ws)]
+  DB[(SQLite DB<br/>db/app.db)]
+
+  Browser <-->|HTTP + WebSocket<br/>Auth cookies| API
+  API <-->|SQLAlchemy / SQL| DB
+```
+
 ## Data Model (summary; see `docs/data-model.md`)
-- Projects: `project_name`, 4-char `name_abbreviation`, `status`, `description`, `sponsor` (required); soft delete; `user_id` set server-side.
-- Solutions: belong to Project and are the primary trackable work item; `solution_name`, `version`, `status`, `priority`, optional `due_date`, optional `current_phase`, `owner` (required), optional `assignee/approver/key_stakeholder`, optional `blockers/risks`; soft delete; `completed_at` when done.
+- Projects: `project_name`, 4-char `name_abbreviation`, `status`, `description`, optional `success_criteria`, `sponsor` (required); soft delete; `user_id` set server-side.
+- Solutions: belong to Project and are the primary trackable work item; `solution_name`, `version`, `status`, `priority`, optional `due_date`, optional `current_phase`, optional `success_criteria`, `owner` (required), optional `assignee/approver/key_stakeholder`, optional `blockers/risks`; soft delete; `completed_at` when done.
 - Phases: global ordered list; per-solution enable/disable via `solution_phases`. Progress is derived from `solutions.current_phase` relative to enabled phases.
 - Subcomponents: optional tasks under a Solution; minimal fields: `subcomponent_name`, `status`, `priority` (0–5), optional `due_date`, `assignee` (required); soft delete; `completed_at` when done.
 
@@ -38,7 +49,7 @@
 - Projects view: enforce sponsor (projects) and abbreviation constraints.
 - Solutions view: solution-first tracking (priority/due/current phase) with phase toggles per solution.
 - Subcomponents view: optional tasks under a solution (assignee required).
-- Master list, Swimlanes, and Calendar are solution-first (filters on status/project/current phase/priority/due).
+- Deliverables, Swimlanes, and Calendar are solution-first (filters on status/project/current phase/priority/due).
 
 ## Positioning within a Bank Environment
 - Data classification: currently untagged; assume non-PII until reviewed. No masking/DLP.

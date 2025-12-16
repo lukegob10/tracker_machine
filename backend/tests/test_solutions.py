@@ -26,6 +26,7 @@ async def test_create_and_list_solutions(client):
             "version": "0.1.0",
             "status": "active",
             "description": "RBAC and audit",
+            "success_criteria": "Enforce RBAC for top 10 apps and pass audit",
             "owner": "Solution Owner",
         },
     )
@@ -34,6 +35,7 @@ async def test_create_and_list_solutions(client):
     assert data["solution_name"] == "Access Controls"
     assert data["version"] == "0.1.0"
     assert data["priority"] == 3
+    assert data["success_criteria"] == "Enforce RBAC for top 10 apps and pass audit"
 
     list_resp = await client.get(f"/api/projects/{project['project_id']}/solutions")
     assert list_resp.status_code == 200
@@ -80,12 +82,17 @@ async def test_update_solution_status_and_description(client):
 
     update_resp = await client.patch(
         f"/api/solutions/{solution_id}",
-        json={"status": "complete", "description": "Shipped"},
+        json={
+            "status": "complete",
+            "description": "Shipped",
+            "success_criteria": "100% traffic migrated; no Sev1 incidents for 30 days",
+        },
     )
     assert update_resp.status_code == 200
     updated = update_resp.json()
     assert updated["status"] == "complete"
     assert updated["description"] == "Shipped"
+    assert updated["success_criteria"] == "100% traffic migrated; no Sev1 incidents for 30 days"
     assert updated["completed_at"] is not None
 
 

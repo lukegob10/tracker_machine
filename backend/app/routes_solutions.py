@@ -219,6 +219,7 @@ def create_solution(
         due_date=payload.due_date,
         current_phase=current_phase,
         description=payload.description,
+        success_criteria=payload.success_criteria,
         owner=payload.owner,
         assignee=payload.assignee or "",
         approver=payload.approver,
@@ -246,6 +247,7 @@ def create_solution(
             "due_date": (None, solution.due_date),
             "current_phase": (None, solution.current_phase),
             "description": (None, solution.description),
+            "success_criteria": (None, solution.success_criteria),
             "owner": (None, solution.owner),
             "assignee": (None, solution.assignee),
             "approver": (None, solution.approver),
@@ -311,6 +313,7 @@ def import_solutions(
             errors.append(f"Row {idx}: {exc}")
             continue
         description = normalize_str(row.get("description")) or None
+        success_criteria = normalize_str(row.get("success_criteria")) or None
         current_phase = normalize_str(row.get("current_phase")) or None
         if current_phase:
             phase_exists = session.query(Phase).filter(Phase.phase_id == current_phase).first()
@@ -350,6 +353,7 @@ def import_solutions(
                     "name_abbreviation": (None, project.name_abbreviation),
                     "status": (None, project.status),
                     "description": (None, project.description),
+                    "success_criteria": (None, project.success_criteria),
                 },
                 request_id=request_id,
             )
@@ -372,6 +376,7 @@ def import_solutions(
                     "due_date": existing.due_date,
                     "current_phase": existing.current_phase,
                     "description": existing.description,
+                    "success_criteria": existing.success_criteria,
                     "owner": existing.owner,
                     "assignee": existing.assignee,
                     "approver": existing.approver,
@@ -386,6 +391,7 @@ def import_solutions(
                 existing.due_date = due_date_val
                 existing.current_phase = current_phase
                 existing.description = description
+                existing.success_criteria = success_criteria
                 existing.owner = owner
                 existing.assignee = assignee or ""
                 existing.approver = approver
@@ -410,6 +416,7 @@ def import_solutions(
                         "due_date": (before["due_date"], existing.due_date),
                         "current_phase": (before["current_phase"], existing.current_phase),
                         "description": (before["description"], existing.description),
+                        "success_criteria": (before["success_criteria"], existing.success_criteria),
                         "owner": (before["owner"], existing.owner),
                         "assignee": (before["assignee"], existing.assignee),
                         "approver": (before["approver"], existing.approver),
@@ -434,6 +441,7 @@ def import_solutions(
                     due_date=due_date_val,
                     current_phase=current_phase,
                     description=description,
+                    success_criteria=success_criteria,
                     owner=owner,
                     assignee=assignee or "",
                     approver=approver,
@@ -459,6 +467,7 @@ def import_solutions(
                         "due_date": (None, solution.due_date),
                         "current_phase": (None, solution.current_phase),
                         "description": (None, solution.description),
+                        "success_criteria": (None, solution.success_criteria),
                         "owner": (None, solution.owner),
                         "assignee": (None, solution.assignee),
                         "approver": (None, solution.approver),
@@ -501,6 +510,7 @@ def export_solutions(session: Session = Depends(get_db)):
         "due_date",
         "current_phase",
         "description",
+        "success_criteria",
         "owner",
         "assignee",
         "approver",
@@ -522,6 +532,7 @@ def export_solutions(session: Session = Depends(get_db)):
                 "due_date": s.due_date.isoformat() if s.due_date else "",
                 "current_phase": s.current_phase or "",
                 "description": s.description or "",
+                "success_criteria": s.success_criteria or "",
                 "owner": s.owner or "",
                 "assignee": s.assignee or "",
                 "approver": s.approver or "",

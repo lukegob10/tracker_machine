@@ -2,14 +2,14 @@
 
 ## Why this exists
 Today Jira-lite’s dashboards and planning views are **subcomponent-centric**:
-- Master List, Kanban, Calendar, and most KPI math are computed from subcomponents.
+- Deliverables, Kanban, Calendar, and most KPI math are computed from subcomponents.
 - Solutions are more like containers/config (phases enabled, owner, status) and don’t carry enough tracking fields to stand alone.
 
 If teams want to track **only Solutions** (no Subcomponents), the UI becomes sparse and metrics collapse to zeros. This plan refactors the app so a **Solution can be the primary trackable work item**, while optionally retaining subcomponents for teams that need task-level detail.
 
 ## Target outcome (acceptance criteria)
 A user can create a Project + Solution (no subcomponents) and still:
-- See meaningful items on Dashboard, Kanban, Calendar, and the primary “Master List” view.
+- See meaningful items on Dashboard, Kanban, Calendar, and the primary “Deliverables” view.
 - Track ownership, due dates, phase/progress, and blockers/risks at the Solution level.
 - Export/import Solutions with the same governance fidelity currently expected for Subcomponents.
 - Retain an optional “Subcomponents mode” for teams that want granular work items.
@@ -108,7 +108,7 @@ The immutable change log should track the new Solution fields.
 Refactor the UI so the primary workflow doesn’t require subcomponents.
 
 **New/updated primary views**
-- **Master List** becomes a “Solutions Master List” (optionally a toggle between Solutions/Subcomponents).
+- **Deliverables** is the Solutions master list (optionally a toggle between Solutions/Subcomponents).
   - Columns: Project, Sponsor, Solution, Owner, Assignee, Current Phase, Priority, Due, Status, Progress, Blockers.
   - Filters: status/project/owner/assignee/phase/priority/due.
 
@@ -144,7 +144,7 @@ Provide a one-time admin script/endpoint to:
 - Emit audit log entries with a `request_id` indicating migration.
 
 **Cutover**
-- Flip UI default to Solutions Master List.
+- Flip UI default to Deliverables.
 - Hide subcomponents view unless enabled.
 
 ### Phase 6 — Cleanup / deprecation (optional)
@@ -175,7 +175,7 @@ Once adoption is proven:
 3. Update solution CSV import/export.
 4. Extend audit log coverage for new solution fields.
 5. Add UI: solution fields in Solutions form.
-6. Refactor Master List/Dashboard/Kanban/Calendar to support solution-centric mode.
+6. Refactor Deliverables/Dashboard/Kanban/Calendar to support solution-centric mode.
 7. Add a feature flag (env var) to switch default mode.
 8. Backfill script for existing data.
 9. Update docs + user guide.

@@ -54,6 +54,7 @@ class ProjectBase(BaseModel):
     name_abbreviation: Optional[constr(min_length=4, max_length=4)] = None  # type: ignore[type-arg]
     status: Optional[ProjectStatus] = None
     description: Optional[str] = None
+    success_criteria: Optional[str] = None
     sponsor: Optional[str] = None
 
 
@@ -76,6 +77,7 @@ class ProjectRead(BaseModel):
     name_abbreviation: str
     status: ProjectStatus
     description: Optional[str] = None
+    success_criteria: Optional[str] = None
     sponsor: Optional[str] = None
     user_id: Optional[str] = None
     created_at: datetime
@@ -90,6 +92,7 @@ class SolutionBase(BaseModel):
     due_date: Optional[date] = None
     current_phase: Optional[str] = None
     description: Optional[str] = None
+    success_criteria: Optional[str] = None
     owner: Optional[str] = None
     assignee: Optional[str] = None
     approver: Optional[str] = None
@@ -122,6 +125,7 @@ class SolutionRead(BaseModel):
     due_date: Optional[date] = None
     current_phase: Optional[str] = None
     description: Optional[str] = None
+    success_criteria: Optional[str] = None
     owner: Optional[str] = None
     assignee: Optional[str] = None
     approver: Optional[str] = None
