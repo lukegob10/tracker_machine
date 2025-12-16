@@ -12,10 +12,12 @@ from sqlalchemy import (
     Integer,
     String,
     UniqueConstraint,
+    Index,
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 from .enums import ProjectStatus, SolutionStatus, SubcomponentStatus
+from .enums import RagSource, RagStatus
 
 
 class Base(DeclarativeBase):
@@ -35,6 +37,46 @@ class SoftDeleteMixin:
     )
 
 
+class User(TimestampMixin, Base):
+    __tablename__ = "users"
+    __table_args__ = (
+        UniqueConstraint("email", name="uix_user_email"),
+        UniqueConstraint("soeid", name="uix_user_soeid"),
+    )
+
+    user_id: Mapped[str] = mapped_column(String, primary_key=True, default=lambda: str(uuid4()))
+    soeid: Mapped[str] = mapped_column(String, nullable=False, unique=True, index=True)
+    email: Mapped[str] = mapped_column(String, nullable=False, unique=True, index=True)
+    display_name: Mapped[str] = mapped_column(String, nullable=False)
+    password_hash: Mapped[str] = mapped_column(String, nullable=False)
+    role: Mapped[str] = mapped_column(String, nullable=False, default="user")
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    failed_attempts: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    locked_until: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    last_login_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    external_id: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+
+
+class ChangeLog(Base):
+    __tablename__ = "change_log"
+    __table_args__ = (
+        Index("idx_change_entity_created", "entity_type", "entity_id", "created_at"),
+        Index("idx_change_user_created", "user_id", "created_at"),
+        Index("idx_change_request", "request_id"),
+    )
+
+    change_id: Mapped[str] = mapped_column(String, primary_key=True, default=lambda: str(uuid4()))
+    entity_type: Mapped[str] = mapped_column(String, nullable=False)
+    entity_id: Mapped[str] = mapped_column(String, nullable=False)
+    action: Mapped[str] = mapped_column(String, nullable=False)
+    field: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    old_value: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    new_value: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    user_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    request_id: Mapped[Optional[str]] = mapped_column(String, nullable=True, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+
+
 class Project(TimestampMixin, SoftDeleteMixin, Base):
     __tablename__ = "projects"
     __table_args__ = (UniqueConstraint("project_name", name="uix_project_name"),)
@@ -48,6 +90,8 @@ class Project(TimestampMixin, SoftDeleteMixin, Base):
         Enum(ProjectStatus), index=True, nullable=False
     )
     description: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    success_criteria: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    sponsor: Mapped[str] = mapped_column(String, nullable=False, default="")
     user_id: Mapped[Optional[str]] = mapped_column(String, nullable=True, index=True)
 
 
@@ -73,7 +117,25 @@ class Solution(TimestampMixin, SoftDeleteMixin, Base):
     status: Mapped[SolutionStatus] = mapped_column(
         Enum(SolutionStatus), index=True, nullable=False
     )
+    rag_status: Mapped[RagStatus] = mapped_column(
+        Enum(RagStatus), index=True, nullable=False, default=RagStatus.amber
+    )
+    rag_source: Mapped[RagSource] = mapped_column(
+        Enum(RagSource), index=True, nullable=False, default=RagSource.auto
+    )
+    rag_reason: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    priority: Mapped[int] = mapped_column(Integer, default=3, nullable=False, index=True)
+    due_date: Mapped[Optional[date]] = mapped_column(Date, nullable=True, index=True)
+    current_phase: Mapped[Optional[str]] = mapped_column(String, nullable=True, index=True)
     description: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    success_criteria: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    owner: Mapped[str] = mapped_column(String, nullable=False, default="")
+    assignee: Mapped[str] = mapped_column(String, nullable=False, default="", index=True)
+    approver: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    key_stakeholder: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    blockers: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    risks: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    completed_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     user_id: Mapped[Optional[str]] = mapped_column(String, nullable=True, index=True)
 
 
@@ -130,39 +192,6 @@ class Subcomponent(TimestampMixin, SoftDeleteMixin, Base):
     )
     priority: Mapped[int] = mapped_column(Integer, default=3, nullable=False, index=True)
     due_date: Mapped[Optional[date]] = mapped_column(Date, nullable=True, index=True)
-    sub_phase: Mapped[Optional[str]] = mapped_column(
-        String, nullable=True, index=True
-    )
-    description: Mapped[Optional[str]] = mapped_column(String, nullable=True)
-    notes: Mapped[Optional[str]] = mapped_column(String, nullable=True)
-    category: Mapped[Optional[str]] = mapped_column(String, nullable=True, index=True)
-    dependencies: Mapped[Optional[str]] = mapped_column(String, nullable=True)
-    work_estimate: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     completed_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    assignee: Mapped[str] = mapped_column(String, nullable=False, default="")
     user_id: Mapped[Optional[str]] = mapped_column(String, nullable=True, index=True)
-
-
-class SubcomponentPhaseStatus(TimestampMixin, Base):
-    __tablename__ = "subcomponent_phase_status"
-    __table_args__ = (
-        UniqueConstraint(
-            "subcomponent_id",
-            "solution_phase_id",
-            name="uix_subcomponent_solution_phase",
-        ),
-    )
-
-    subcomponent_phase_id: Mapped[str] = mapped_column(
-        String, primary_key=True, default=lambda: str(uuid4())
-    )
-    subcomponent_id: Mapped[str] = mapped_column(
-        String, ForeignKey("subcomponents.subcomponent_id"), index=True
-    )
-    solution_phase_id: Mapped[str] = mapped_column(
-        String, ForeignKey("solution_phases.solution_phase_id"), nullable=False
-    )
-    phase_id: Mapped[str] = mapped_column(
-        String, ForeignKey("phases.phase_id"), index=True, nullable=False
-    )
-    is_complete: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False, index=True)
-    completed_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)

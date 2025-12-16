@@ -3,17 +3,20 @@ from typing import List, Optional
 
 import csv
 from io import StringIO
+from uuid import uuid4
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, status
+from fastapi import APIRouter, Body, Depends, HTTPException, status, BackgroundTasks
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 
-from .deps import get_db
+from .deps import get_db, current_user as current_user_dep
 from .enums import ProjectStatus
-from .models import Project
+from .models import Project, User
 from .schemas import ProjectCreate, ProjectRead, ProjectUpdate
-from .utils import derive_abbreviation, get_default_user_id, normalize_status, normalize_str, read_csv
-from .utils import get_default_user_id
+from .utils import derive_abbreviation, normalize_status, normalize_str, read_csv
+from .realtime import schedule_broadcast
+from .audit_log import log_changes
 
 router = APIRouter()
 
@@ -38,18 +41,27 @@ def _get_project_or_404(session: Session, project_id: str) -> Project:
 @router.get("/", response_model=List[ProjectRead])
 def list_projects(
     status_filter: Optional[ProjectStatus] = None,
+    sponsor: Optional[str] = None,
     session: Session = Depends(get_db),
 ):
     query = _project_query(session)
     if status_filter:
         query = query.filter(Project.status == status_filter)
+    if sponsor:
+        sponsor_norm = sponsor.strip().lower()
+        query = query.filter(func.lower(Project.sponsor) == sponsor_norm)
     projects = query.all()
     return projects
 
 
 @router.post("", response_model=ProjectRead, status_code=status.HTTP_201_CREATED)
 @router.post("/", response_model=ProjectRead, status_code=status.HTTP_201_CREATED)
-def create_project(payload: ProjectCreate, session: Session = Depends(get_db)):
+def create_project(
+    payload: ProjectCreate,
+    session: Session = Depends(get_db),
+    tasks: BackgroundTasks = None,
+    current_user: User = Depends(current_user_dep),
+):
     existing = (
         session.query(Project)
         .filter(Project.project_name == payload.project_name)
@@ -66,28 +78,57 @@ def create_project(payload: ProjectCreate, session: Session = Depends(get_db)):
         name_abbreviation=payload.name_abbreviation,
         status=payload.status,
         description=payload.description,
-        user_id=get_default_user_id(),
+        success_criteria=payload.success_criteria,
+        sponsor=payload.sponsor,
+        user_id=current_user.user_id,
     )
     session.add(project)
+    session.flush()
+    log_changes(
+        session,
+        entity_type="project",
+        entity_id=project.project_id,
+        user_id=current_user.user_id,
+        action="create",
+        changes={
+            "project_name": (None, project.project_name),
+            "name_abbreviation": (None, project.name_abbreviation),
+            "status": (None, project.status),
+            "description": (None, project.description),
+            "success_criteria": (None, project.success_criteria),
+            "sponsor": (None, project.sponsor),
+        },
+    )
     session.commit()
     session.refresh(project)
+    schedule_broadcast("projects")
     return project
 
 
 @router.post("/import")
-def import_projects(file: UploadFile = File(...), session: Session = Depends(get_db)):
-    rows, errors = read_csv(file.file.read())
+def import_projects(
+    csv_bytes: bytes = Body(..., media_type="text/csv"),
+    session: Session = Depends(get_db),
+    tasks: BackgroundTasks = None,
+    current_user: User = Depends(current_user_dep),
+):
+    rows, errors = read_csv(csv_bytes)
     if errors:
         return {"created": 0, "updated": 0, "errors": errors, "total_rows": 0}
     created = updated = 0
     seen = set()
     existing_abbrevs = {p.name_abbreviation for p in _project_query(session).all()}
     new_abbrevs = set()
+    request_id = str(uuid4())
 
     for idx, row in enumerate(rows, start=2):  # header is row 1
         name = normalize_str(row.get("project_name"))
+        sponsor = normalize_str(row.get("sponsor"))
         if not name:
             errors.append(f"Row {idx}: project_name is required")
+            continue
+        if not sponsor:
+            errors.append(f"Row {idx}: sponsor is required")
             continue
         key = name.lower()
         if key in seen:
@@ -109,14 +150,39 @@ def import_projects(file: UploadFile = File(...), session: Session = Depends(get
             continue
 
         description = normalize_str(row.get("description")) or None
+        success_criteria = normalize_str(row.get("success_criteria")) or None
         existing = _project_query(session).filter(Project.project_name == name).first()
         try:
             if existing:
+                before = {
+                    "name_abbreviation": existing.name_abbreviation,
+                    "status": existing.status,
+                    "description": existing.description,
+                    "success_criteria": existing.success_criteria,
+                    "sponsor": existing.sponsor,
+                }
                 existing.name_abbreviation = abbr
                 existing.status = status_enum
                 existing.description = description
+                existing.success_criteria = success_criteria
+                existing.sponsor = sponsor
                 existing.updated_at = datetime.now(timezone.utc)
                 session.add(existing)
+                log_changes(
+                    session,
+                    entity_type="project",
+                    entity_id=existing.project_id,
+                    user_id=current_user.user_id,
+                    action="update",
+                    changes={
+                        "name_abbreviation": (before["name_abbreviation"], existing.name_abbreviation),
+                        "status": (before["status"], existing.status),
+                        "description": (before["description"], existing.description),
+                        "success_criteria": (before["success_criteria"], existing.success_criteria),
+                        "sponsor": (before["sponsor"], existing.sponsor),
+                    },
+                    request_id=request_id,
+                )
                 updated += 1
             else:
                 project = Project(
@@ -124,15 +190,35 @@ def import_projects(file: UploadFile = File(...), session: Session = Depends(get
                     name_abbreviation=abbr,
                     status=status_enum,
                     description=description,
-                    user_id=get_default_user_id(),
+                    success_criteria=success_criteria,
+                    sponsor=sponsor,
+                    user_id=current_user.user_id,
                 )
                 session.add(project)
+                session.flush()
+                log_changes(
+                    session,
+                    entity_type="project",
+                    entity_id=project.project_id,
+                    user_id=current_user.user_id,
+                    action="create",
+                    changes={
+                        "project_name": (None, project.project_name),
+                        "name_abbreviation": (None, project.name_abbreviation),
+                        "status": (None, project.status),
+                        "description": (None, project.description),
+                        "success_criteria": (None, project.success_criteria),
+                        "sponsor": (None, project.sponsor),
+                    },
+                    request_id=request_id,
+                )
                 created += 1
                 new_abbrevs.add(abbr)
             session.commit()
         except Exception as exc:
             session.rollback()
             errors.append(f"Row {idx}: {exc}")
+    schedule_broadcast("projects")
     return {"created": created, "updated": updated, "errors": errors, "total_rows": len(rows)}
 
 
@@ -140,7 +226,7 @@ def import_projects(file: UploadFile = File(...), session: Session = Depends(get
 def export_projects(session: Session = Depends(get_db)):
     projects = _project_query(session).all()
     buffer = StringIO()
-    fieldnames = ["project_name", "name_abbreviation", "status", "description"]
+    fieldnames = ["project_name", "name_abbreviation", "status", "description", "success_criteria", "sponsor"]
     writer = csv.DictWriter(buffer, fieldnames=fieldnames)
     writer.writeheader()
     for p in projects:
@@ -150,6 +236,8 @@ def export_projects(session: Session = Depends(get_db)):
                 "name_abbreviation": p.name_abbreviation,
                 "status": p.status.value if hasattr(p.status, "value") else p.status,
                 "description": p.description or "",
+                "success_criteria": p.success_criteria or "",
+                "sponsor": p.sponsor or "",
             }
         )
     buffer.seek(0)
@@ -164,10 +252,17 @@ def get_project(project_id: str, session: Session = Depends(get_db)):
 
 
 @router.patch("/{project_id}", response_model=ProjectRead)
-def update_project(project_id: str, payload: ProjectUpdate, session: Session = Depends(get_db)):
+def update_project(
+    project_id: str,
+    payload: ProjectUpdate,
+    session: Session = Depends(get_db),
+    tasks: BackgroundTasks = None,
+    current_user: User = Depends(current_user_dep),
+):
     project = _get_project_or_404(session, project_id)
 
     update_data = payload.model_dump(exclude_unset=True)
+    before = {field: getattr(project, field) for field in update_data.keys()}
     for field, value in update_data.items():
         setattr(project, field, value)
     project.updated_at = datetime.now(timezone.utc)
@@ -186,17 +281,41 @@ def update_project(project_id: str, payload: ProjectUpdate, session: Session = D
             )
 
     session.add(project)
+    if update_data:
+        log_changes(
+            session,
+            entity_type="project",
+            entity_id=project.project_id,
+            user_id=current_user.user_id,
+            action="update",
+            changes={field: (before.get(field), getattr(project, field)) for field in update_data.keys()},
+        )
     session.commit()
     session.refresh(project)
+    schedule_broadcast("projects")
     return project
 
 
 @router.delete("/{project_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_project(project_id: str, session: Session = Depends(get_db)):
+def delete_project(
+    project_id: str,
+    session: Session = Depends(get_db),
+    tasks: BackgroundTasks = None,
+    current_user: User = Depends(current_user_dep),
+):
     project = _get_project_or_404(session, project_id)
     now = datetime.now(timezone.utc)
     project.deleted_at = now
     project.updated_at = now
     session.add(project)
+    log_changes(
+        session,
+        entity_type="project",
+        entity_id=project.project_id,
+        user_id=current_user.user_id,
+        action="delete",
+        changes={"deleted_at": (None, now)},
+    )
     session.commit()
+    schedule_broadcast("projects")
     return None

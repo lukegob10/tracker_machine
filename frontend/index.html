@@ -7,12 +7,34 @@
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
+  <div id="auth-screen" class="auth-screen hidden">
+    <div class="auth-card">
+      <div class="auth-brand">SIPM</div>
+      <div class="auth-tabs">
+        <button id="auth-tab-login" class="auth-tab active" type="button">Log in</button>
+        <button id="auth-tab-register" class="auth-tab" type="button">Create account</button>
+      </div>
+      <form id="login-form" class="auth-form">
+        <label>SOEID <input type="text" name="soeid" autocomplete="username" required /></label>
+        <label>Password <input type="password" name="password" autocomplete="current-password" required /></label>
+        <button type="submit">Log in</button>
+      </form>
+      <form id="register-form" class="auth-form hidden">
+        <label>Name <input type="text" name="display_name" autocomplete="name" required /></label>
+        <label>SOEID <input type="text" name="soeid" autocomplete="username" required /></label>
+        <label>Password <input type="password" name="password" autocomplete="new-password" required /></label>
+        <button type="submit">Create account</button>
+      </form>
+      <div id="auth-error" class="auth-error" role="status"></div>
+    </div>
+  </div>
+
   <div id="app-shell">
     <aside class="sidebar">
-      <div class="brand">Inventory Tool</div>
+      <div class="brand">SIPM</div>
       <div class="nav-group">
         <p class="nav-label">Views</p>
-        <button data-view="master" class="nav-btn active">Master List</button>
+        <button data-view="master" class="nav-btn active">Deliverables</button>
         <button data-view="dashboard" class="nav-btn">Dashboard</button>
         <button data-view="projects" class="nav-btn">Projects</button>
         <button data-view="solutions" class="nav-btn">Solutions</button>
@@ -28,6 +50,8 @@
           <span id="connection-status" class="pill">Loading…</span>
         </div>
         <div class="topbar-actions">
+          <span id="current-user" class="pill muted"></span>
+          <button id="logout-btn" class="secondary">Logout</button>
           <button id="theme-toggle" class="secondary">Light Mode</button>
         </div>
       </header>
@@ -35,7 +59,7 @@
       <section id="view-master" class="view active">
         <div class="panel">
           <div class="panel-header">
-            <h2>Master List</h2>
+            <h2>Deliverables</h2>
             <div class="filters" id="master-filters"></div>
           </div>
           <div id="master-table" class="table"></div>
@@ -85,12 +109,14 @@
                     <option value="complete">Complete</option>
                     <option value="abandoned">Abandoned</option>
                   </select>
-                </label>
-                <label class="full-span">Description <textarea name="description"></textarea></label>
-                <div class="form-actions full-span">
-                  <button type="submit">Save Edit</button>
-                  <button type="button" id="new-project" class="secondary">New</button>
-                  <button type="reset" class="secondary">Reset</button>
+	                </label>
+	                <label>Sponsor <input name="sponsor" required /></label>
+	                <label class="full-span">Description <textarea name="description"></textarea></label>
+	                <label class="full-span">Success Criteria <textarea name="success_criteria" placeholder="- Outcome / metric / target / evidence"></textarea></label>
+	                <div class="form-actions full-span">
+	                  <button type="submit">Save Edit</button>
+	                  <button type="button" id="new-project" class="secondary">New</button>
+	                  <button type="reset" class="secondary">Reset</button>
                 </div>
               </form>
               <div id="project-list" class="table"></div>
@@ -112,38 +138,66 @@
                 <input type="file" id="solutions-file" accept=".csv" hidden />
                 <span id="solutions-import-result" class="import-result"></span>
               </div>
-              <form id="solution-form" class="form compact">
-                <input type="hidden" name="solution_id" />
-                <label class="wide">Project
-                  <select name="project_id" required></select>
-                </label>
-                <label class="wide">Solution <input name="solution_name" required /></label>
-                <label>Version <input name="version" value="0.1.0" /></label>
-                <label>Status
-                  <select name="status">
-                    <option value="not_started">Not started</option>
-                    <option value="active">Active</option>
-                    <option value="on_hold">On hold</option>
-                    <option value="complete">Complete</option>
-                    <option value="abandoned">Abandoned</option>
-                  </select>
-                </label>
-                <label class="full-span">Description <textarea name="description"></textarea></label>
-                <div class="form-actions full-span">
-                  <button type="submit">Save Edit</button>
-                  <button type="button" id="new-solution" class="secondary">New</button>
-                  <button type="reset" class="secondary">Reset</button>
-                </div>
-              </form>
-              <div id="solution-list" class="table"></div>
-              <details id="solution-phases" class="panel soft">
-                <summary>Phases for Selected Solution</summary>
-                <div id="phases-table" class="table"></div>
-              </details>
-            </div>
-          </div>
-        </div>
-      </section>
+		              <form id="solution-form" class="form compact">
+		                <input type="hidden" name="solution_id" />
+		                <label class="wide">Project
+		                  <select name="project_id" required></select>
+		                </label>
+		                <label class="wide">Solution <input name="solution_name" required /></label>
+		                <label>Version <input name="version" value="0.1.0" /></label>
+		                <label>Status
+		                  <select name="status">
+		                    <option value="not_started">Not started</option>
+		                    <option value="active">Active</option>
+		                    <option value="on_hold">On hold</option>
+		                    <option value="complete">Complete</option>
+		                    <option value="abandoned">Abandoned</option>
+		                  </select>
+		                </label>
+		                <label>RAG Mode
+		                  <select name="rag_source">
+		                    <option value="auto" selected>Auto</option>
+		                    <option value="manual">Manual override</option>
+		                  </select>
+		                </label>
+		                <label>RAG Status
+		                  <select name="rag_status">
+		                    <option value="amber" selected>Amber</option>
+		                    <option value="red">Red</option>
+		                    <option value="green">Green</option>
+		                  </select>
+		                </label>
+		                <label>Priority
+		                  <input type="number" name="priority" min="0" max="5" value="3" />
+		                </label>
+		                <label>Due Date <input type="date" name="due_date" /></label>
+		                <label class="wide">Current Phase
+	                  <select name="current_phase"></select>
+	                </label>
+	                <label class="wide">Solution Owner <input name="owner" required /></label>
+	                <label class="wide">Assignee <input name="assignee" /></label>
+			                <label class="wide">Approver <input name="approver" /></label>
+			                <label class="wide">Key Stakeholder <input name="key_stakeholder" /></label>
+			                <label class="full-span">Description <textarea name="description"></textarea></label>
+			                <label class="full-span">Success Criteria <textarea name="success_criteria" placeholder="- Outcome / metric / target / evidence"></textarea></label>
+			                <label class="full-span rag-reason-field">RAG Reason <textarea name="rag_reason" placeholder="Why override the auto RAG?"></textarea></label>
+			                <label class="full-span">Blockers <textarea name="blockers"></textarea></label>
+			                <label class="full-span">Risks <textarea name="risks"></textarea></label>
+			                <div class="form-actions full-span">
+			                  <button type="submit">Save Edit</button>
+		                  <button type="button" id="new-solution" class="secondary">New</button>
+		                  <button type="reset" class="secondary">Reset</button>
+		                </div>
+		              </form>
+	              <details id="solution-phases" class="panel soft">
+	                <summary>Phases for Selected Solution</summary>
+	                <div id="phases-table" class="table"></div>
+	              </details>
+	              <div id="solution-list" class="table"></div>
+	            </div>
+	          </div>
+	        </div>
+	      </section>
 
       <section id="view-subcomponents" class="view">
         <div class="panel">
@@ -156,39 +210,35 @@
             <input type="file" id="subcomponents-file" accept=".csv" hidden />
             <span id="subcomponents-import-result" class="import-result"></span>
           </div>
-          <form id="subcomponent-form" class="form compact">
-            <input type="hidden" name="subcomponent_id" />
-            <label class="wide">Project
-              <select name="project_id" required></select>
-            </label>
-            <label class="wide">Solution
-              <select name="solution_id" required></select>
-            </label>
-            <label>Subphase
-              <select name="sub_phase"></select>
-            </label>
-            <label>Priority
-              <input type="number" name="priority" min="0" max="5" value="3" />
-            </label>
-            <label>Due Date <input type="date" name="due_date" /></label>
-            <label>Status
-              <select name="status">
-                <option value="to_do">To do</option>
-                <option value="in_progress">In progress</option>
-                <option value="on_hold">On hold</option>
-                <option value="complete">Complete</option>
-                <option value="abandoned">Abandoned</option>
-              </select>
-            </label>
-            <label class="full-span">Name <input name="subcomponent_name" required /></label>
-            <label class="full-span">Description <textarea name="description"></textarea></label>
-            <label class="full-span">Notes <textarea name="notes"></textarea></label>
-            <div class="form-actions full-span">
-              <button type="submit">Save Edit</button>
-              <button type="button" id="new-subcomponent" class="secondary">New</button>
-              <button type="reset" class="secondary">Reset</button>
-            </div>
-          </form>
+	          <form id="subcomponent-form" class="form compact">
+	            <input type="hidden" name="subcomponent_id" />
+	            <label class="wide">Project
+	              <select name="project_id" required></select>
+	            </label>
+	            <label class="wide">Solution
+	              <select name="solution_id" required></select>
+	            </label>
+	            <label class="full-span">Task <input name="subcomponent_name" required /></label>
+	            <label>Priority
+	              <input type="number" name="priority" min="0" max="5" value="3" />
+	            </label>
+	            <label>Due Date <input type="date" name="due_date" /></label>
+	            <label>Status
+	              <select name="status">
+	                <option value="to_do">To do</option>
+	                <option value="in_progress">In progress</option>
+	                <option value="on_hold">On hold</option>
+	                <option value="complete">Complete</option>
+	                <option value="abandoned">Abandoned</option>
+	              </select>
+	            </label>
+	            <label>Assignee <input name="assignee" required /></label>
+	            <div class="form-actions full-span">
+	              <button type="submit">Save Edit</button>
+	              <button type="button" id="new-subcomponent" class="secondary">New</button>
+	              <button type="reset" class="secondary">Reset</button>
+	            </div>
+	          </form>
           <div id="subcomponent-list" class="table"></div>
         </div>
       </section>

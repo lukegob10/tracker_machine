@@ -1,17 +1,17 @@
 :root {
-  --base: #003a72;
-  --base-strong: #002a57;
-  --base-soft: #0a4f9c;
-  --bg: #0a1727;
-  --panel: #0f2036;
-  --panel-soft: #12304d;
-  --text: #e6eef7;
-  --muted: #9eb5ce;
-  --accent: #4db1ff;
-  --accent-2: #52d3c7;
+  --base: #0f141c;
+  --base-strong: #0c1018;
+  --base-soft: #171d27;
+  --bg: #0b0f16;
+  --panel: #111725;
+  --panel-soft: #161d2b;
+  --text: #e2e7ef;
+  --muted: #a3adbb;
+  --accent: #8fb7ff;
+  --accent-2: #9ad7c6;
   --border: rgba(255, 255, 255, 0.08);
-  --danger: #ff5f6d;
-  --shadow: 0 12px 32px rgba(0, 58, 114, 0.35);
+  --danger: #ff6b6b;
+  --shadow: 0 12px 32px rgba(12, 16, 24, 0.45);
 }
 
 .theme-light {
@@ -165,6 +165,45 @@ main {
   background: rgba(255, 255, 255, 0.03);
 }
 
+.phase-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 10px;
+}
+.phase-group {
+  margin-bottom: 12px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 10px;
+}
+.phase-group-title {
+  font-weight: 700;
+  margin: 0 0 8px;
+}
+.phase-cell {
+  background: var(--panel-soft);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px;
+  display: grid;
+  gap: 6px;
+}
+.phase-title {
+  font-weight: 600;
+}
+.phase-meta {
+  color: var(--muted);
+  font-size: 13px;
+}
+.phase-toggle {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  font-size: 13px;
+  color: var(--text);
+}
+
 .pill {
   display: inline-block;
   padding: 6px 10px;
@@ -186,6 +225,10 @@ main {
   color: var(--danger);
   border-color: var(--danger);
 }
+.pill.muted {
+  color: var(--muted);
+  border-color: var(--border);
+}
 
 .form {
   display: grid;
@@ -198,7 +241,7 @@ main {
 }
 .form label {
   display: grid;
-  gap: 4px;
+  gap: 6px;
   color: var(--muted);
   font-size: 14px;
 }
@@ -206,22 +249,25 @@ main {
 .form select,
 .form textarea {
   width: 100%;
-  padding: 9px;
+  padding: 11px;
   border-radius: 8px;
   border: 1px solid var(--border);
   background: var(--panel);
   color: var(--text);
 }
 .form textarea {
-  min-height: 64px;
+  min-height: 96px;
+}
+.form .full-span textarea {
+  min-height: 120px;
 }
 .form .full-span {
   grid-column: 1 / -1;
 }
 .form.compact {
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  column-gap: 12px;
-  row-gap: 10px;
+  column-gap: 14px;
+  row-gap: 12px;
 }
 #project-form.form.compact {
   column-gap: 24px;
@@ -406,6 +452,86 @@ button:disabled {
 }
 .stack-block h3 {
   margin: 0 0 8px;
+}
+
+.hidden {
+  display: none !important;
+}
+
+.auth-screen {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 999;
+}
+.auth-card {
+  width: min(420px, 90vw);
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 16px;
+  box-shadow: var(--shadow);
+}
+.auth-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.auth-brand {
+  text-align: center;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  margin-bottom: 12px;
+  font-size: 20px;
+}
+.auth-tab {
+  padding: 10px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--panel-soft);
+  color: var(--text);
+  cursor: pointer;
+}
+.auth-tab.active {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: rgba(77, 177, 255, 0.12);
+}
+.auth-form {
+  display: grid;
+  gap: 10px;
+}
+.auth-form label {
+  display: grid;
+  gap: 4px;
+  color: var(--muted);
+  font-size: 14px;
+}
+.auth-form input {
+  padding: 10px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--panel-soft);
+  color: var(--text);
+}
+.auth-form button {
+  padding: 10px;
+  border-radius: 10px;
+  border: none;
+  background: linear-gradient(135deg, var(--base), var(--accent));
+  color: #fff;
+  cursor: pointer;
+  font-weight: 600;
+}
+.auth-error {
+  min-height: 18px;
+  margin-top: 8px;
+  color: var(--danger);
+  font-size: 13px;
 }
 
 @media (max-width: 900px) {
