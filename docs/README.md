@@ -1,4 +1,4 @@
-# Jira-lite Docs Map
+# Docs Map
 
 - `project-overview.md`: product/tech goals, architecture, runtime layout, and dev quickstart.
 - `api-documentation.md`: canonical API surface under `/api`, including CSV import/export, defaults, and error shapes.
