@@ -8,8 +8,8 @@ from pathlib import Path
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
-from .db import init_db
-from .routes import api_router
+from backend.app.db import init_db
+from backend.app.routes import api_router
 
 
 @asynccontextmanager
@@ -62,7 +62,7 @@ def health() -> dict:
     return {"status": "ok"}
 
 
-# Serve frontend from repo root /frontend
-FRONTEND_DIR = Path(__file__).resolve().parents[2] / "frontend"
+# Serve frontend from src/main/ui
+FRONTEND_DIR = Path(__file__).resolve().parents[1] / "ui"
 if FRONTEND_DIR.exists():
     app.mount("/", StaticFiles(directory=FRONTEND_DIR, html=True), name="frontend")

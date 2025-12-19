@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import sys
+from pathlib import Path
 from types import SimpleNamespace
 
 import httpx
@@ -10,12 +11,12 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
-ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-if ROOT_DIR not in sys.path:
-    sys.path.insert(0, ROOT_DIR)
+MAIN_DIR = Path(__file__).resolve().parents[1]
+if str(MAIN_DIR) not in sys.path:
+    sys.path.insert(0, str(MAIN_DIR))
 
 from backend.app.deps import current_user, get_db, require_user
-from backend.app.main import app as fastapi_app
+from backend.main import app as fastapi_app
 from backend.app.models import Base
 
 

@@ -1,9 +1,17 @@
 import os
+from pathlib import Path
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-DATABASE_URL = os.getenv("JIRA_LITE_DATABASE_URL", "sqlite:///./db/app.db")
+
+def _default_sqlite_url() -> str:
+    db_path = Path(__file__).resolve().parents[2] / "data" / "app.db"
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+    return f"sqlite:///{db_path}"
+
+
+DATABASE_URL = os.getenv("JIRA_LITE_DATABASE_URL") or _default_sqlite_url()
 
 # `check_same_thread=False` allows usage across threads (FastAPI default).
 connect_args = {"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {}
