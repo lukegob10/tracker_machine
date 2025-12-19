@@ -26,6 +26,15 @@ def _get_user_by_soeid(session: Session, soeid: str) -> Optional[User]:
     return session.query(User).filter(User.soeid == soeid.lower()).first()
 
 
+def _is_user_locked(user: User, now: datetime) -> bool:
+    locked_until = user.locked_until
+    if not locked_until:
+        return False
+    if locked_until.tzinfo is None:
+        locked_until = locked_until.replace(tzinfo=timezone.utc)
+    return locked_until > now
+
+
 @router.post("/register", response_model=UserRead, status_code=status.HTTP_201_CREATED)
 def register(payload: UserCreate, response: Response, session: Session = Depends(get_db)):
     soeid_norm = str(payload.soeid).strip().lower()
@@ -64,7 +73,7 @@ def login(payload: UserLogin, response: Response, session: Session = Depends(get
     if not user.is_active:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User is inactive")
 
-    if user.locked_until and user.locked_until > now:
+    if _is_user_locked(user, now):
         raise HTTPException(status_code=status.HTTP_423_LOCKED, detail="Account locked. Try again later.")
 
     if not verify_password(payload.password, user.password_hash):
@@ -100,7 +109,7 @@ def refresh(request: Request, response: Response, session: Session = Depends(get
     user = session.query(User).filter(User.user_id == user_id).first()
     if not user or not user.is_active:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User inactive or missing")
-    if user.locked_until and user.locked_until > datetime.now(timezone.utc):
+    if _is_user_locked(user, datetime.now(timezone.utc)):
         raise HTTPException(status_code=status.HTTP_423_LOCKED, detail="Account locked")
 
     access_token = create_token(user.user_id, user.role, "access")

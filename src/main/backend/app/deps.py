@@ -24,8 +24,12 @@ def require_user(request: Request, session: Session = Depends(get_db)) -> User:
     user = session.query(User).filter(User.user_id == user_id).first()
     if not user or not user.is_active:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User inactive or missing")
-    if user.locked_until and user.locked_until > datetime.now(timezone.utc):
-        raise HTTPException(status_code=status.HTTP_423_LOCKED, detail="Account locked")
+    if user.locked_until:
+        locked_until = user.locked_until
+        if locked_until.tzinfo is None:
+            locked_until = locked_until.replace(tzinfo=timezone.utc)
+        if locked_until > datetime.now(timezone.utc):
+            raise HTTPException(status_code=status.HTTP_423_LOCKED, detail="Account locked")
     request.state.user = user
     return user
 
